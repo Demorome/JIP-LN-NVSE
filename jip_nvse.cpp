@@ -1377,6 +1377,9 @@ bool NVSEPlugin_Load(const NVSEInterface *nvse)
 	/*2923*/REG_CMD(GetP2PRayCastRange);
 	/*2924*/REG_CMD(WeaponHasModType);
 
+	//	v56.??
+	/*2925*/REG_CMD(sv_RegexHasError);
+
 	//===========================================================
 
 	if (nvse->isEditor)
@@ -1410,6 +1413,7 @@ bool NVSEPlugin_Load(const NVSEInterface *nvse)
 	GetPluginInfoByName = cmdInterface->GetPluginInfoByName;
 	NVSEStringVarInterface *strInterface = (NVSEStringVarInterface*)nvse->QueryInterface(kInterface_StringVar);
 	GetStringVar = strInterface->GetString;
+	SetStringVar = strInterface->SetString;
 	AssignString = strInterface->Assign;
 	NVSEArrayVarInterface *arrInterface = (NVSEArrayVarInterface*)nvse->QueryInterface(kInterface_ArrayVar);
 	CreateArray = arrInterface->CreateArray;

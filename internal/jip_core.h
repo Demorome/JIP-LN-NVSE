@@ -34,6 +34,8 @@ typedef const PluginInfo* (*_GetPluginInfoByName)(const char *pluginName);
 extern _GetPluginInfoByName GetPluginInfoByName;
 typedef const char* (*_GetStringVar)(UInt32 stringID);
 extern _GetStringVar GetStringVar;
+typedef void (*_SetStringVar)(UInt32 stringID, const char* newValue);
+extern _SetStringVar SetStringVar;
 typedef bool (*_AssignString)(COMMAND_ARGS, const char *newValue);
 extern _AssignString AssignString;
 typedef NVSEArrayVar* (*_CreateArray)(const NVSEArrayElement *data, UInt32 size, Script *callingScript);

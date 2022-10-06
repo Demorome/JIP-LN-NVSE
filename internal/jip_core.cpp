@@ -18,6 +18,7 @@ _ReadRecord64 ReadRecord64;
 _GetCmdByOpcode GetCmdByOpcode;
 _GetPluginInfoByName GetPluginInfoByName;
 _GetStringVar GetStringVar;
+_SetStringVar SetStringVar;
 _AssignString AssignString;
 _CreateArray CreateArray;
 _CreateStringMap CreateStringMap;
