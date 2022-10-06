@@ -1,7 +1,7 @@
 #pragma once
 
 DEFINE_COMMAND_PLUGIN(IsParentActivateOnly, 0, 1, kParams_OneOptionalObjectRef);
-DEFINE_COMMAND_PLUGIN(SetBaseForm, 1, 1, kParams_OneForm);
+DEFINE_COMMAND_PLUGIN(SetBaseForm, 1, 1, kParams_OneBoundObject);
 DEFINE_COMMAND_ALT_PLUGIN(GetInventoryWeight, GetInvWeight, 1, 1, kParams_OneOptionalInt);
 DEFINE_CMD_ALT_COND_PLUGIN(GetReferenceFlag, GetRefFlag, 1, 1, kParams_OneInt);
 DEFINE_COMMAND_ALT_PLUGIN(SetReferenceFlag, SetRefFlag, 1, 2, kParams_TwoInts);
@@ -27,7 +27,7 @@ bool Cmd_IsParentActivateOnly_Execute(COMMAND_ARGS)
 bool Cmd_SetBaseForm_Execute(COMMAND_ARGS)
 {
 	TESForm *form;
-	if (!containingObj && ExtractArgsEx(EXTRACT_ARGS_EX, &form) && (VTBL(form) == VTBL(thisObj->baseForm)))
+	if (!containingObj && ExtractArgsEx(EXTRACT_ARGS_EX, &form))
 	{
 		thisObj->baseForm = form;
 		thisObj->Update3D();
@@ -45,15 +45,15 @@ bool Cmd_GetInventoryWeight_Execute(COMMAND_ARGS)
 
 bool Cmd_GetReferenceFlag_Eval(COMMAND_ARGS_EVAL)
 {
-	*result = (thisObj->flags & (UInt32)arg1) ? 1 : 0;
+	*result = (thisObj->flags & (UInt32)arg1) != 0;
 	return true;
 }
 
 bool Cmd_GetReferenceFlag_Execute(COMMAND_ARGS)
 {
 	UInt32 flag;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &flag))
-		*result = (thisObj->flags & flag) ? 1 : 0;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &flag) && (thisObj->flags & flag))
+		*result = 1;
 	else *result = 0;
 	DoConsolePrint(result);
 	return true;
@@ -66,6 +66,7 @@ bool Cmd_SetReferenceFlag_Execute(COMMAND_ARGS)
 	{
 		if (inval) thisObj->flags |= flag;
 		else thisObj->flags &= ~flag;
+		//ThisCall(0x484B60, thisObj, 1);
 	}
 	return true;
 }
