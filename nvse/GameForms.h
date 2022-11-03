@@ -762,7 +762,7 @@ public:
 };
 
 // 0C
-struct LvlListExtra
+struct ContainerExtra
 {
 	union						// 00
 	{
@@ -785,7 +785,7 @@ public:
 	{
 		SInt32				count;			//	00
 		TESForm				*form;			//	04
-		LvlListExtra		*contExtraData;	//	08
+		ContainerExtra		*contExtraData;	//	08
 	};
 	typedef tList<FormCount> FormCountList;
 
@@ -1889,6 +1889,28 @@ public:
 		kArchType_ValueAndParts,
 		kArchType_LimbCondition,
 		kArchType_Turbo,
+	};
+
+	enum EffectSettingFlags
+	{
+		kEffFlag_Hostile =			1,
+		kEffFlag_Recover =			2,
+		kEffFlag_Detrimental =		4,
+		kEffFlag_Hidden =			8,
+		kEffFlag_Self =				0x10,
+		kEffFlag_Touch =			0x20,
+		kEffFlag_Target =			0x40,
+		kEffFlag_NoDuration =		0x80,
+		kEffFlag_NoMagnitude =		0x100,
+		kEffFlag_NoArea =			0x200,
+		kEffFlag_FXPersist =		0x400,
+		kEffFlag_GoryVisuals =		0x1000,
+		kEffFlag_DisplayNameOnly =	0x2000,
+		kEffFlag_UseSkill =			0x80000,
+		kEffFlag_UseAttribute =		0x100000,
+		kEffFlag_Painless =			0x1000000,
+		kEffFlag_NoHitEffect =		0x8000000,
+		kEffFlag_NoDeathDispel =	0x10000000
 	};
 
 	TESModel		model;				// 18
@@ -3081,7 +3103,7 @@ public:
 		TESForm			*form;		// 00
 		SInt16			count;		// 04
 		SInt16			level;		// 06
-		LvlListExtra	*extra;		// 08
+		ContainerExtra	*extra;		// 08
 	}; // 0C
 
 	enum

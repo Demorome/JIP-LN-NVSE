@@ -13,7 +13,7 @@ void String::Init(UInt32 bufSize)
 	m_dataLen = 0;
 }
 
-bool String::Set(const char *src)
+void String::Set(const char *src)
 {
 	m_dataLen = StrLen(src);
 	if (!m_dataLen)
@@ -28,7 +28,7 @@ bool String::Set(const char *src)
 			m_bufLen = 0;
 		}
 		else if (m_data) *m_data = 0;
-		return true;
+		return;
 	}
 	if (m_bufLen < m_dataLen)
 	{
@@ -36,14 +36,13 @@ bool String::Set(const char *src)
 		if (m_data) GameHeapFree(m_data);
 		m_data = (char*)GameHeapAlloc(m_dataLen + 1);
 	}
-	memmove(m_data, src, m_dataLen + 1);
-	return true;
+	COPY_BYTES(m_data, src, m_dataLen + 1);
 }
 
-bool String::Append(const char *toAppend)
+void String::Append(const char *toAppend)
 {
 	UInt16 length = StrLen(toAppend);
-	if (!length) return true;
+	if (!length) return;
 	UInt16 newLen = m_dataLen + length;
 	if (m_bufLen < newLen)
 	{
@@ -51,14 +50,13 @@ bool String::Append(const char *toAppend)
 		char *newStr = (char*)GameHeapAlloc(m_bufLen + 1);
 		if (m_data)
 		{
-			memcpy(newStr, m_data, m_dataLen);
+			COPY_BYTES(newStr, m_data, m_dataLen);
 			GameHeapFree(m_data);
 		}
 		m_data = newStr;
 	}
-	memmove(m_data + m_dataLen, toAppend, length + 1);
+	COPY_BYTES(m_data + m_dataLen, toAppend, length + 1);
 	m_dataLen = newLen;
-	return true;
 }
 
 void String::AppendChar(char toAppend)
@@ -69,7 +67,7 @@ void String::AppendChar(char toAppend)
 		char *newStr = (char*)GameHeapAlloc(m_bufLen + 1);
 		if (m_data)
 		{
-			memcpy(newStr, m_data, m_dataLen);
+			COPY_BYTES(newStr, m_data, m_dataLen);
 			GameHeapFree(m_data);
 		}
 		m_data = newStr;
@@ -87,7 +85,7 @@ void String::InsertChar(char toInsert, UInt32 index)
 		char *newStr = (char*)GameHeapAlloc(m_bufLen + 1);
 		if (m_data)
 		{
-			memcpy(newStr, m_data, m_dataLen);
+			COPY_BYTES(newStr, m_data, m_dataLen);
 			GameHeapFree(m_data);
 		}
 		m_data = newStr;
@@ -109,7 +107,7 @@ void String::EraseAt(UInt32 index)
 		if (!length)
 			m_data[m_dataLen] = 0;
 		else
-			memmove(m_data + index, m_data + index + 1, length + 1);
+			COPY_BYTES(m_data + index, m_data + index + 1, length + 1);
 	}
 	else *m_data = 0;
 }

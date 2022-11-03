@@ -1,69 +1,63 @@
 #include "nvse/GameData.h"
 
-class LoadedModFinder
+const ModInfo *DataHandler::LookupModByName(const char *modName)
 {
-	const char * m_stringToFind;
-
-public:
-	LoadedModFinder(const char * str) : m_stringToFind(str) { }
-
-	bool Accept(ModInfo* modInfo)
+	ModList *pModList = &modList;
+	for (UInt32 idx = 0; idx < pModList->loadedModCount; idx++)
 	{
-		return !StrCompare(modInfo->name, m_stringToFind);
+		ModInfo *pInfo = pModList->loadedMods[idx];
+		if (!StrCompareCI(pInfo->name, modName))
+			return pInfo;
 	}
-};
-
-const ModInfo * DataHandler::LookupModByName(const char * modName)
-{
-	return modList.modInfoList.Find(LoadedModFinder(modName));
+	return nullptr;
 }
 
-const ModInfo ** DataHandler::GetActiveModList()
+__declspec(naked) UInt8 __fastcall DataHandler::GetModIndex(const char *modName)
 {
-	static const ModInfo *activeModList[0x100] = {NULL};
-
-	if (!activeModList[0])
+	__asm
 	{
-		UInt32 index = 0;
-		auto iter = modList.modInfoList.Head();
-		do
-		{
-			activeModList[index++] = iter->data;
-		}
-		while (iter = iter->next);
+		push	ebx
+		push	esi
+		push	edi
+		lea		ebx, [ecx+0x21C]
+		mov		esi, edx
+		mov		edi, [ebx-4]
+		ALIGN 16
+	iterHead:
+		mov		edx, esi
+		mov		ecx, [ebx]
+		add		ecx, 0x20
+		call	StrCompareCI
+		test	al, al
+		jz		found
+		add		ebx, 4
+		dec		edi
+		jnz		iterHead
+		mov		al, 0xFF
+		pop		edi
+		pop		esi
+		pop		ebx
+		retn
+	found:
+		mov		ecx, [ebx]
+		mov		al, [ecx+0x40C]
+		pop		edi
+		pop		esi
+		pop		ebx
+		retn
 	}
-
-	return activeModList;
 }
 
-UInt8 DataHandler::GetModIndex(const char *modName)
+const char *DataHandler::GetNthModName(UInt32 modIndex)
 {
-	ListNode<ModInfo> *iter = modList.modInfoList.Head();
-	ModInfo *modInfo;
-	do
-	{
-		modInfo = iter->data;
-		if (modInfo && !StrCompare(modInfo->name, modName))
-			return modInfo->modIndex;
-	}
-	while (iter = iter->next);
-	return 0xFF;
-}
-
-const char* DataHandler::GetNthModName(UInt32 modIndex)
-{
-	const ModInfo** activeModList = GetActiveModList();
-	if (modIndex < GetActiveModCount() && activeModList[modIndex])
-		return activeModList[modIndex]->name;
-	else
-		return "";
+	auto modInfo = modList.loadedMods[modIndex];
+	return modInfo ? modInfo->name : "";
 }
 
 void Sky::RefreshMoon()
 {
 	if (masserMoon) masserMoon->Destroy(true);
-	masserMoon = (Moon*)GameHeapAlloc(sizeof(Moon));
-	ThisCall(0x634A70, masserMoon, (const char*)0x104EEB0, *(UInt32*)0x11CCCBC, *(UInt32*)0x11CCC98, *(UInt32*)0x11CCBA8, *(UInt32*)0x11CCC00, *(UInt32*)0x11CCC58, *(UInt32*)0x11CCC1C);
+	masserMoon = ThisCall<Moon*>(0x634A70, GameHeapAlloc(sizeof(Moon)), (const char*)0x104EEB0, *(UInt32*)0x11CCCBC, *(UInt32*)0x11CCC98, *(UInt32*)0x11CCBA8, *(UInt32*)0x11CCC00, *(UInt32*)0x11CCC58, *(UInt32*)0x11CCC1C);
 	masserMoon->Refresh(niNode008, (const char*)0x104EEB0);
 }
 
@@ -98,23 +92,24 @@ __declspec(naked) TESObjectCELL *GridCellArray::GetCell(Coordinate cellXY) const
 	__asm
 	{
 		push	ebx
-		mov		edx, [ecx+0xC]
-		shr		edx, 1
+		mov		ebx, ecx
+		mov		ecx, [ebx+0xC]
+		shr		ecx, 1
 		movsx	eax, word ptr [esp+0xA]
-		sub		eax, [ecx+4]
-		add		eax, edx
-		cmp		eax, [ecx+0xC]
+		sub		eax, [ebx+4]
+		add		eax, ecx
+		cmp		eax, [ebx+0xC]
 		jnb		retnNull
-		movsx	ebx, word ptr [esp+8]
-		sub		ebx, [ecx+8]
-		add		ebx, edx
-		mov		edx, [ecx+0xC]
-		cmp		ebx, edx
+		movsx	edx, word ptr [esp+8]
+		sub		edx, [ebx+8]
+		add		edx, ecx
+		cmp		edx, [ebx+0xC]
 		jnb		retnNull
-		imul	eax, edx
-		add		ebx, eax
-		mov		ecx, [ecx+0x10]
-		mov		eax, [ecx+ebx*4]
+		add		edx, eax
+		shl		eax, cl
+		add		edx, eax
+		mov		ecx, [ebx+0x10]
+		mov		eax, [ecx+edx*4]
 		pop		ebx
 		retn	4
 	retnNull:

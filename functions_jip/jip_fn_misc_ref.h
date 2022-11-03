@@ -80,7 +80,7 @@ DEFINE_COMMAND_PLUGIN(GetBlockTextureSet, 1, 1, kParams_OneString);
 DEFINE_COMMAND_PLUGIN(GetPosEx, 1, 3, kParams_ThreeScriptVars);
 DEFINE_COMMAND_PLUGIN(GetAngleEx, 1, 4, kParams_ThreeScriptVars_OneOptionalInt);
 DEFINE_COMMAND_PLUGIN(SetTextureTransformKey, 1, 4, kParams_OneString_TwoInts_OneFloat);
-DEFINE_COMMAND_PLUGIN(AttachExtraCamera, 1, 3, kParams_OneString_OneInt_OneOptionalString);
+DEFINE_COMMAND_PLUGIN(AttachExtraCamera, 1, 4, kParams_OneString_OneInt_OneOptionalString_OneOptionalInt);
 DEFINE_COMMAND_PLUGIN(ProjectExtraCamera, 0, 5, kParams_TwoStrings_OneFloat_TwoOptionalInt);
 DEFINE_COMMAND_PLUGIN(RenameNifBlock, 1, 3, kParams_TwoStrings_OneOptionalInt);
 DEFINE_COMMAND_PLUGIN(RemoveNifBlock, 1, 2, kParams_OneString_OneOptionalInt);
@@ -98,6 +98,7 @@ DEFINE_COMMAND_PLUGIN(SetCollisionObjLayerType, 1, 2, kParams_OneString_OneInt);
 DEFINE_COMMAND_PLUGIN(SetRefrModelPath, 1, 1, kParams_OneOptionalString);
 DEFINE_COMMAND_PLUGIN(AttachLine, 1, 7, kParams_TwoStrings_FiveFloats);
 DEFINE_COMMAND_PLUGIN(ToggleNoZPosReset, 1, 1, kParams_OneInt);
+DEFINE_COMMAND_PLUGIN(RotateAroundPoint, 1, 7, kParams_SixFloats_OneOptionalInt);
 
 bool Cmd_SetPersistent_Execute(COMMAND_ARGS)
 {
@@ -127,7 +128,7 @@ bool Cmd_GetObjectDimensions_Execute(COMMAND_ARGS)
 		}
 		boundObj = (TESBoundObject*)thisObj->baseForm;
 	}
-	*result = abs(boundObj->bounds[axis + 3] - boundObj->bounds[axis]) * scale;
+	*result = abs(float(boundObj->bounds[axis + 3] - boundObj->bounds[axis]) * scale);
 	return true;
 }
 
@@ -244,7 +245,7 @@ bool Cmd_AddPrimitive_Execute(COMMAND_ARGS)
 		thisObj->extraDataList.AddExtra(xPrimitive);
 		UInt32 size = (type == 1) ? 0x4C : 0x34;
 		BGSPrimitive *primitive = (BGSPrimitive*)GameHeapAlloc(size);
-		MemZero(primitive, size);
+		MEM_ZERO(primitive, size);
 		*(UInt32*)primitive = (type == 1) ? kVtbl_BGSPrimitiveBox : ((type == 2) ? kVtbl_BGSPrimitiveSphere : kVtbl_BGSPrimitivePlane);
 		primitive->type = type;
 		bounds *= 0.5F;
@@ -339,7 +340,7 @@ bool Cmd_MoveToEditorPosition_Execute(COMMAND_ARGS)
 	}
 	thisObj->MoveToCell(cell, *posVector);
 	if (resetRot)
-		thisObj->SetAngle(rotVector.PS(), false);
+		thisObj->SetAngle(rotVector * GET_PS(8), false);
 	*result = 1;
 	return true;
 }
@@ -381,10 +382,10 @@ bool Cmd_GetRefType_Execute(COMMAND_ARGS)
 bool Cmd_ToggleObjectCollision_Execute(COMMAND_ARGS)
 {
 	UInt32 enable;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &enable) && NOT_ACTOR(thisObj) && (!enable == !(thisObj->JIPRefFlags() & kHookRefFlag5F_DisableCollision)))
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &enable) && (!enable == !(thisObj->JIPRefFlags() & kHookRefFlag5F_DisableCollision)))
 	{
 		thisObj->JIPRefFlags() ^= kHookRefFlag5F_DisableCollision;
-		thisObj->Update3D();
+		thisObj->ToggleCollision(enable != 0);
 	}
 	return true;
 }
@@ -726,7 +727,7 @@ bool Cmd_AddRefMapMarker_Execute(COMMAND_ARGS)
 	else if (s_refMapMarkersList.IsInList(thisObj)) return true;
 	s_refMapMarkersList.Prepend(thisObj);
 	s_refMapMarkersCount++;
-	HOOK_MOD(CreateMapMarkers, true);
+	HOOK_INC(CreateMapMarkers);
 	return true;
 }
 
@@ -736,7 +737,7 @@ bool Cmd_RemoveRefMapMarker_Execute(COMMAND_ARGS)
 	if ((idx == -1) || (idx >= s_refMapMarkersCount)) return true;
 	if (--s_refMapMarkersCount) s_refMapMarkersList.RemoveNth(idx);
 	else s_refMapMarkersList.Init();
-	HOOK_MOD(CreateMapMarkers, false);
+	HOOK_DEC(CreateMapMarkers);
 	return true;
 }
 
@@ -764,7 +765,10 @@ bool Cmd_SetPosEx_Execute(COMMAND_ARGS)
 		if (!transform)
 			thisObj->SetPos(posVector);
 		else if (transform == 1)
-			thisObj->SetPos(thisObj->GetTranslatedPos(posVector));
+		{
+			posVector = thisObj->GetTranslatedPos(posVector);
+			thisObj->SetPos(posVector);
+		}
 		else if (transform == 2)
 			thisObj->SetPos(posVector += thisObj->position);
 	}
@@ -804,16 +808,19 @@ bool Cmd_SetRefName_Execute(COMMAND_ARGS)
 		if (name[0])
 		{
 			char **namePtr;
-			if (s_refNamesMap().Insert(thisObj, &namePtr))
-				HOOK_MOD(GetRefName, true);
-			else free(*namePtr);
-			*namePtr = CopyString(name);
+			if (s_refNamesMap->InsertKey(thisObj, &namePtr))
+				HOOK_INC(GetRefName);
+			else FreeStringKey(*namePtr);
+			*namePtr = CopyStringKey(name);
 			thisObj->JIPRefFlags() |= kHookRefFlag5F_AltRefName;
 		}
 		else
 		{
-			if (s_refNamesMap().EraseFree(thisObj))
-				HOOK_MOD(GetRefName, false);
+			if (char *pName = s_refNamesMap->GetErase(thisObj))
+			{
+				FreeStringKey(pName);
+				HOOK_DEC(GetRefName);
+			}
 			thisObj->JIPRefFlags() &= ~kHookRefFlag5F_AltRefName;
 		}
 	}
@@ -822,13 +829,13 @@ bool Cmd_SetRefName_Execute(COMMAND_ARGS)
 
 bool Cmd_SetAngleEx_Execute(COMMAND_ARGS)
 {
-	NiVector4 rotVector;
+	NiVector3 rotVector;
 	UInt32 transform = 0;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &rotVector.x, &rotVector.y, &rotVector.z, &transform))
 	{
 		if (transform <= 1)
-			thisObj->SetAngle(rotVector.PS(), transform);
-		else thisObj->Rotate(rotVector.PS());
+			thisObj->SetAngle(rotVector * GET_PS(8), transform);
+		else thisObj->Rotate(_mm_xor_ps(rotVector * GET_PS(8), GET_PS(2)));
 	}
 	return true;
 }
@@ -872,11 +879,11 @@ bool Cmd_SetOnCriticalHitEventHandler_Execute(COMMAND_ARGS)
 		}
 	}
 	CriticalHitEventData evntData(target, source, weapon, script);
-	if (addEvnt && s_criticalHitEvents().Find(CriticalHitEventFind(evntData)))
+	if (addEvnt && s_criticalHitEvents->Find(CriticalHitEventFind(evntData)))
 		return true;
-	s_criticalHitEvents().Remove(CriticalHitEventRemove(evntData));
+	s_criticalHitEvents->Remove(CriticalHitEventRemove(evntData));
 	if (addEvnt)
-		*s_criticalHitEvents().Append() = evntData;
+		*s_criticalHitEvents->Append() = evntData;
 	return true;
 }
 
@@ -1056,7 +1063,7 @@ bool Cmd_SetNifBlockTranslation_Execute(COMMAND_ARGS)
 			if (niBlock)
 			{
 				if (transform)
-					niBlock->LocalTranslate() += transltn;
+					niBlock->LocalTranslate() += transltn.PS();
 				else niBlock->LocalTranslate() = transltn;
 				if IS_NODE(niBlock)
 				{
@@ -1075,7 +1082,7 @@ bool Cmd_SetNifBlockTranslation_Execute(COMMAND_ARGS)
 		else
 		{
 			if (transform)
-				transltn += thisObj->position;
+				transltn += thisObj->position.PS();
 			thisObj->SetPos(transltn);
 		}
 	}
@@ -1101,7 +1108,7 @@ bool Cmd_GetNifBlockRotation_Execute(COMMAND_ARGS)
 				test	getMode, 1
 				cmovnz	ecx, eax
 				mov		eax, NiMatrix33::ToEulerPRY
-				mov		edx, NiMatrix33::ToEulerPRYInv
+				mov		edx, NiMatrix33::ToEulerYPR
 				test	getMode, 2
 				cmovnz	eax, edx
 				call	eax
@@ -1130,17 +1137,17 @@ bool Cmd_SetNifBlockRotation_Execute(COMMAND_ARGS)
 				if (!transform)
 					niBlock->LocalRotate().FromEulerPRY(rot * GET_PS(8));
 				else if (transform == 1)
-					niBlock->LocalRotate().Rotate(rot * GET_PS(8));
+					niBlock->LocalRotate().Rotate(_mm_xor_ps(rot * GET_PS(8), GET_PS(2)));
 				else
-					niBlock->LocalRotate().FromEulerPRYInv(rot * GET_PS(8));
+					niBlock->LocalRotate().FromEulerYPR(rot * GET_PS(8));
 				if (IS_NODE(niBlock) && NOT_ACTOR(thisObj))
 					((NiNode*)niBlock)->ResetCollision();
 				niBlock->UpdateDownwardPass(kUpdateParams, 0);
 			}
 		}
 		else if (transform != 1)
-			thisObj->SetAngle(rot.PS(), transform);
-		else thisObj->Rotate(rot.PS());
+			thisObj->SetAngle(rot * GET_PS(8), transform);
+		else thisObj->Rotate(_mm_xor_ps(rot * GET_PS(8), GET_PS(2)));
 	}
 	return true;
 }
@@ -1321,17 +1328,17 @@ bool Cmd_GetRayCastPos_Execute(COMMAND_ARGS)
 	*result = 0;
 	TESGlobal *outX, *outY, *outZ;
 	float posZmod, maxRange = 50000.0F;
-	UInt32 filter = 6;
+	SInt32 layerType = 6;
 	char nodeName[0x40];
 	nodeName[0] = 0;
 	UInt8 numArgs = NUM_ARGS;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &outX, &outY, &outZ, &posZmod, &filter, &nodeName, &maxRange))
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &outX, &outY, &outZ, &posZmod, &layerType, &nodeName, &maxRange))
 	{
 		NiNode *objNode = thisObj->GetNode(nodeName);
 		if (objNode)
 		{
 			NiVector4 coords;
-			if (coords.RayCastCoords(objNode->WorldTranslate(), objNode->WorldRotate() + 1, maxRange, filter) || (numArgs >= 7))
+			if (coords.RayCastCoords(objNode->WorldTranslate(), objNode->WorldRotate() + 1, maxRange, layerType) || (numArgs >= 7))
 			{
 				outX->data = coords.x;
 				outY->data = coords.y;
@@ -1626,7 +1633,7 @@ bool Cmd_SetLinearVelocity_Execute(COMMAND_ARGS)
 		hkpRigidBody *rigidBody = thisObj->GetRigidBody(blockName);
 		if (rigidBody && rigidBody->IsMobile())
 		{
-			rigidBody->motion.linVelocity = setLocal ? rigidBody->motion.motionState.transform.rotation.MultiplyVectorInv(velocity) : velocity;
+			rigidBody->motion.linVelocity = setLocal ? rigidBody->motion.motionState.transform.rotation.MultiplyVectorInv(_mm_load_ps(velocity)) : velocity;
 			rigidBody->UpdateMotion();
 			*result = 1;
 		}
@@ -1754,7 +1761,7 @@ bool __fastcall RegisterInsertObject(TESForm *form, int EDX, char *inData)
 	s_insertObjects = !s_insertNodeMap->Empty() || !s_attachModelMap->Empty();
 	result = true;
 freeDataStr:
-	Pool_Free(inData, 0x80);
+	Pool_CFree(inData, 0x80);
 	return result;
 }
 
@@ -1762,7 +1769,7 @@ bool Cmd_InsertNode_Execute(COMMAND_ARGS)
 {
 	*result = 0;
 	TESForm *form;
-	char *dataStr = (char*)Pool_Alloc(0x80);
+	char *dataStr = Pool_CAlloc(0x80);
 	if (ExtractFormatStringArgs(2, dataStr + 2, EXTRACT_ARGS_EX, kCommandInfo_InsertNode.numParams, &form, dataStr))
 	{
 		((UInt8*)dataStr)[1] = kHookFormFlag6_InsertNode;
@@ -1770,7 +1777,7 @@ bool Cmd_InsertNode_Execute(COMMAND_ARGS)
 			*result = RegisterInsertObject(form, 0, dataStr);
 		else MainLoopAddCallbackArgs(RegisterInsertObject, form, 1, dataStr);
 	}
-	else Pool_Free(dataStr, 0x80);
+	else Pool_CFree(dataStr, 0x80);
 	return true;
 }
 
@@ -1778,7 +1785,7 @@ bool Cmd_AttachModel_Execute(COMMAND_ARGS)
 {
 	*result = 0;
 	TESForm *form;
-	char *dataStr = (char*)Pool_Alloc(0x80);
+	char *dataStr = Pool_CAlloc(0x80);
 	if (ExtractFormatStringArgs(2, dataStr + 2, EXTRACT_ARGS_EX, kCommandInfo_AttachModel.numParams, &form, dataStr))
 	{
 		((UInt8*)dataStr)[1] = kHookFormFlag6_AttachModel;
@@ -1786,7 +1793,7 @@ bool Cmd_AttachModel_Execute(COMMAND_ARGS)
 			*result = RegisterInsertObject(form, 0, dataStr);
 		else MainLoopAddCallbackArgs(RegisterInsertObject, form, 1, dataStr);
 	}
-	else Pool_Free(dataStr, 0x80);
+	else Pool_CFree(dataStr, 0x80);
 	return true;
 }
 
@@ -1874,15 +1881,15 @@ Retn1:
 bool Cmd_GetRayCastRef_Execute(COMMAND_ARGS)
 {
 	*result = 0;
-	UInt32 filter = 6;
+	SInt32 layerType = 6;
 	char nodeName[0x40];
 	nodeName[0] = 0;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &filter, &nodeName))
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &layerType, &nodeName))
 	{
 		NiNode *objNode = thisObj->GetNode(nodeName);
 		if (objNode)
 		{
-			NiAVObject *rcObject = GetRayCastObject(objNode->WorldTranslate(), objNode->WorldRotate() + 1, 50000.0F, filter & 0x3F);
+			NiAVObject *rcObject = GetRayCastObject(objNode->WorldTranslate(), objNode->WorldRotate() + 1, 50000.0F, layerType);
 			if (rcObject)
 			{
 				TESObjectREFR *resRefr = rcObject->GetParentRef();
@@ -1895,15 +1902,15 @@ bool Cmd_GetRayCastRef_Execute(COMMAND_ARGS)
 
 bool Cmd_GetRayCastMaterial_Execute(COMMAND_ARGS)
 {
-	UInt32 filter = 6;
+	SInt32 layerType = 6;
 	char nodeName[0x40];
 	nodeName[0] = 0;
 	int material = -1;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &filter, &nodeName))
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &layerType, &nodeName))
 	{
 		NiNode *objNode = thisObj->GetNode(nodeName);
 		if (objNode)
-			material = GetRayCastMaterial(objNode->WorldTranslate(), objNode->WorldRotate() + 1, 50000.0F, filter & 0x3F);
+			material = GetRayCastMaterial(objNode->WorldTranslate(), objNode->WorldRotate() + 1, 50000.0F, layerType);
 	}
 	*result = material;
 	return true;
@@ -2058,11 +2065,11 @@ bool Cmd_GetAngleEx_Execute(COMMAND_ARGS)
 		{
 			NiNode *rootNode = thisObj->GetRefNiNode();
 			if (rootNode && (thisObj->refID != 0x14))
-				angles = rootNode->WorldRotate().ToEulerPRYInv();
+				angles = rootNode->WorldRotate().ToEulerYPR();
 			else
 			{
 				NiMatrix33 rotMat = thisObj->rotation;
-				angles = rotMat.ToEulerPRYInv();
+				angles = rotMat.ToEulerYPR();
 			}
 		}
 		outRot.Set(angles, GET_PS(9));
@@ -2111,19 +2118,20 @@ bool Cmd_AttachExtraCamera_Execute(COMMAND_ARGS)
 	char camName[0x40], nodeName[0x40];
 	UInt32 doAttach;
 	nodeName[0] = 0;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &camName, &doAttach, &nodeName) && camName[0])
+	UInt32 pcNode = 0;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &camName, &doAttach, &nodeName, &pcNode) && camName[0])
 	{
 		NiCamera *xCamera;
 		if (doAttach)
 		{
-			NiNode *targetNode = thisObj->GetNode2(nodeName);
-			if (targetNode)
+			NiNode *targetNode = (NiNode*)GetNifBlock(thisObj, pcNode, nodeName);
+			if (targetNode && IS_NODE(targetNode))
 			{
 				NiCamera **pCamera;
-				if (s_extraCamerasMap().Insert(camName, &pCamera))
+				if (s_extraCamerasMap->InsertKey(camName, &pCamera))
 				{
 					*pCamera = xCamera = NiCamera::Create();
-					InterlockedIncrement(&xCamera->m_uiRefCount);
+					xCamera->m_uiRefCount++;
 					xCamera->SetName(camName);
 					xCamera->m_transformLocal.scale = 0;
 					xCamera->frustum.n = 5.0F;
@@ -2141,7 +2149,7 @@ bool Cmd_AttachExtraCamera_Execute(COMMAND_ARGS)
 				*result = 1;
 			}
 		}
-		else if (xCamera = s_extraCamerasMap().GetErase(camName))
+		else if (xCamera = s_extraCamerasMap->GetErase(camName))
 		{
 			if (xCamera->m_parent)
 				xCamera->m_parent->RemoveObject(xCamera);
@@ -2155,41 +2163,32 @@ bool Cmd_AttachExtraCamera_Execute(COMMAND_ARGS)
 bool Cmd_ProjectExtraCamera_Execute(COMMAND_ARGS)
 {
 	*result = 0;
-	char camName[0x40], nodeName[0x40];
+	char camName[0x40], blockName[0x40];
 	float fov;
 	UInt32 pixelSize = 0x100, grayscale = 0;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &camName, &nodeName, &fov, &pixelSize, &grayscale))
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &camName, &blockName, &fov, &pixelSize, &grayscale))
 	{
-		NiCamera *xCamera = s_extraCamerasMap().Get(camName);
+		NiCamera *xCamera = s_extraCamerasMap->Get(camName);
 		if (xCamera && xCamera->m_parent)
 		{
 			NiTexture **pTexture = nullptr;
-			if (nodeName[0] == '*')
+			if (blockName[0] == '*')
 			{
-				TileImage *targetTile = (TileImage*)GetTargetComponent(nodeName + 1);
+				TileImage *targetTile = (TileImage*)GetTargetComponent(blockName + 1);
 				if (targetTile && IS_TYPE(targetTile, TileImage) && targetTile->shaderProp)
 					pTexture = &targetTile->shaderProp->srcTexture;
 			}
 			else if (thisObj)
-			{
-				NiAVObject *targetGeom = thisObj->GetNiBlock(nodeName);
-				if (targetGeom && targetGeom->GetTriBasedGeom())
-				{
-					BSShaderNoLightingProperty *shaderProp = (BSShaderNoLightingProperty*)targetGeom->GetProperty(3);
-					if (shaderProp && (shaderProp->shaderType == BSShaderProperty::kType_NoLighting))
-						pTexture = &shaderProp->srcTexture;
-				}
-			}
+				pTexture = thisObj->GetTexturePtr(blockName);
 			if (pTexture)
 			{
-				if (xCamera->m_transformLocal.scale != fov)
+				if (!FloatsEqual(xCamera->m_transformLocal.scale, fov))
 				{
 					xCamera->m_transformLocal.scale = fov;
 					xCamera->frustum.viewPort.SetFOV(fov * FltPId180);
 				}
-				TextureParams texParams(pixelSize, pixelSize, grayscale ? TEXTURE_FMT_BW : TEXTURE_FMT_RGB);
 				HighActorCuller::Run(xCamera);
-				GenerateRenderedTexture(nullptr, texParams, xCamera, pTexture);
+				GenerateRenderedTexture(nullptr, TextureParams(pixelSize, pixelSize, grayscale ? TEXTURE_FMT_BW : TEXTURE_FMT_RGB), xCamera, pTexture);
 				*result = 1;
 			}
 		}
@@ -2265,11 +2264,11 @@ bool Cmd_PlayAnimSequence_Execute(COMMAND_ARGS)
 
 bool Cmd_GetTranslatedPos_Execute(COMMAND_ARGS)
 {
-	NiVector4 posMods;
+	NiVector3 posMods;
 	ResultVars outPos;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &posMods.x, &posMods.y, &posMods.z, &outPos.x, &outPos.y, &outPos.z))
 	{
-		outPos.Set(thisObj->GetTranslatedPos(posMods).PS());
+		outPos.Set(thisObj->GetTranslatedPos(posMods));
 		*result = 1;
 	}
 	else *result = 0;
@@ -2306,7 +2305,7 @@ bool Cmd_GetNifBlockRotationAlt_Execute(COMMAND_ARGS)
 		if (niBlock)
 		{
 			NiMatrix33 &rotMat = (getMode & 1) ? niBlock->WorldRotate() : niBlock->LocalRotate();
-			__m128 angles = (getMode & 2) ? rotMat.ToEulerPRYInv() : rotMat.ToEulerPRY();
+			__m128 angles = (getMode & 2) ? rotMat.ToEulerYPR() : rotMat.ToEulerPRY();
 			outRot.Set(angles, GET_PS(9));
 			*result = 1;
 		}
@@ -2330,7 +2329,7 @@ bool Cmd_GetLinearVelocityAlt_Execute(COMMAND_ARGS)
 			else
 			{
 				hkVector4 velocity = rigidBody->motion.linVelocity;
-				outVel.Set(rigidBody->motion.motionState.transform.rotation.MultiplyVector(velocity));
+				outVel.Set(rigidBody->motion.motionState.transform.rotation.MultiplyVector(_mm_load_ps(rigidBody->motion.linVelocity)));
 			}
 			*result = 1;
 		}
@@ -2352,10 +2351,7 @@ bool Cmd_GetAngularVelocityAlt_Execute(COMMAND_ARGS)
 			if (getGlobal)
 				outVel.Set(rigidBody->motion.angVelocity.PS());
 			else
-			{
-				hkVector4 velocity = rigidBody->motion.angVelocity;
-				outVel.Set(rigidBody->motion.motionState.transform.rotation.MultiplyVector(velocity));
-			}
+				outVel.Set(rigidBody->motion.motionState.transform.rotation.MultiplyVector(_mm_load_ps(rigidBody->motion.angVelocity)));
 			*result = 1;
 		}
 	}
@@ -2373,7 +2369,7 @@ bool Cmd_SetAngularVelocityEx_Execute(COMMAND_ARGS)
 		hkpRigidBody *rigidBody = thisObj->GetRigidBody(blockName);
 		if (rigidBody && rigidBody->IsMobile())
 		{
-			rigidBody->motion.angVelocity = setGlobal ? velocity : rigidBody->motion.motionState.transform.rotation.MultiplyVectorInv(velocity);
+			rigidBody->motion.angVelocity = setGlobal ? velocity : rigidBody->motion.motionState.transform.rotation.MultiplyVectorInv(_mm_load_ps(velocity));
 			rigidBody->UpdateMotion();
 			*result = 1;
 		}
@@ -2504,16 +2500,19 @@ bool Cmd_SetRefrModelPath_Execute(COMMAND_ARGS)
 		if (modelPath[0])
 		{
 			char **pPath;
-			if (s_refrModelPathMap().Insert(thisObj, &pPath))
-				HOOK_MOD(GetModelPath, true);
-			else free(*pPath);
-			*pPath = CopyString(modelPath);
+			if (s_refrModelPathMap->InsertKey(thisObj, &pPath))
+				HOOK_INC(GetModelPath);
+			else FreeStringKey(*pPath);
+			*pPath = CopyStringKey(modelPath);
 			thisObj->JIPRefFlags() |= kHookRefFlag5F_RefrModelPath;
 		}
 		else
 		{
-			if (s_refrModelPathMap().EraseFree(thisObj))
-				HOOK_MOD(GetModelPath, false);
+			if (char *pPath = s_refrModelPathMap->GetErase(thisObj))
+			{
+				FreeStringKey(pPath);
+				HOOK_DEC(GetModelPath);
+			}
 			thisObj->JIPRefFlags() &= ~kHookRefFlag5F_RefrModelPath;
 		}
 	}
@@ -2561,5 +2560,14 @@ bool Cmd_ToggleNoZPosReset_Execute(COMMAND_ARGS)
 		}
 		else thisObj->JIPRefFlags() &= ~kHookRefFlag5F_NoZPosReset;
 	}
+	return true;
+}
+
+bool Cmd_RotateAroundPoint_Execute(COMMAND_ARGS)
+{
+	NiVector3 origin, rotation;
+	UInt32 skipAngles = 0;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &origin.x, &origin.y, &origin.z, &rotation.x, &rotation.y, &rotation.z, &skipAngles))
+		thisObj->RotateAroundPoint(rotation * GET_PS(8), origin, skipAngles);
 	return true;
 }

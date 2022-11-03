@@ -77,32 +77,32 @@ extern _UIOInjectComponent UIOInjectComponent;
 
 #define MSGBOX_ARGS 0, 0, ShowMessageBox_Callback, 0, 0x17, 0, 0, "OK", nullptr
 
-struct GameGlobals
+namespace GameGlobals
 {
-	__forceinline static const char **TerminalModelPtr() {return (const char**)0x11A0BB0;}
-	__forceinline static SpellItem *PipBoyLight() {return *(SpellItem**)0x11C358C;}
-	__forceinline static TESDescription **CurrentDescription() {return (TESDescription**)0x11C5490;}
-	__forceinline static String *CurrentDescriptionText() {return (String*)0x11C5498;}
-	__forceinline static NiTPointerMap<TESForm> *AllFormsMap() {return *(NiTPointerMap<TESForm>**)0x11C54C0;}
-	__forceinline static NiTStringPointerMap<TESForm> *EditorIDsMap() {return *(NiTStringPointerMap<TESForm>**)0x11C54C8;}
-	__forceinline static BSTCaseInsensitiveStringMap<void*> *IdleAnimsDirectoryMap() {return *(BSTCaseInsensitiveStringMap<void*>**)0x11CB6A0;}
-	__forceinline static BSSimpleArray<TESRecipeCategory*> *RecipeMenuCategories() {return (BSSimpleArray<TESRecipeCategory*>*)0x11D8F08;}
-	__forceinline static TESObjectWEAP *PlayerWeapon() {return *(TESObjectWEAP**)0x11D98D4;}
-	__forceinline static tList<VATSTarget> *VATSTargetList() {return (tList<VATSTarget>*)0x11DB150;}
-	__forceinline static NiNode *ObjectLODRoot() {return *(NiNode**)0x11DEA18;}
-	__forceinline static bool *GamePadRumble() {return (bool*)0x11E0854;}
-	__forceinline static UInt32 TickCount() {return *(UInt32*)0x11F63A8;}
-	__forceinline static tList<Archive> *ArchivesList() {return *(tList<Archive>**)0x11F8160;}
-	__forceinline static LightCS *SceneLightsLock() {return (LightCS*)0x11F9EA0;}
-	__forceinline static UInt32 *LightingPasses() {return (UInt32*)0x11F91D8;}
-	__forceinline static tList<ListBox<int>> *ActiveListBoxes() {return (tList<ListBox<int>>*)0x11D8B54;}
-	__forceinline static tList<GradualSetFloat> *QueuedGradualSetFloat() {return (tList<GradualSetFloat>*)0x11F3348;}
-	__forceinline static RadioEntry *PipboyRadio() {return *(RadioEntry**)0x11DD42C;}
+	__forceinline const char **TerminalModelPtr() {return (const char**)0x11A0BB0;}
+	__forceinline SpellItem *PipBoyLight() {return *(SpellItem**)0x11C358C;}
+	__forceinline TESDescription **CurrentDescription() {return (TESDescription**)0x11C5490;}
+	__forceinline String *CurrentDescriptionText() {return (String*)0x11C5498;}
+	__forceinline NiTPointerMap<TESForm> *AllFormsMap() {return *(NiTPointerMap<TESForm>**)0x11C54C0;}
+	__forceinline NiTStringPointerMap<TESForm> *EditorIDsMap() {return *(NiTStringPointerMap<TESForm>**)0x11C54C8;}
+	__forceinline BSTCaseInsensitiveStringMap<void*> *IdleAnimsDirectoryMap() {return *(BSTCaseInsensitiveStringMap<void*>**)0x11CB6A0;}
+	__forceinline BSSimpleArray<TESRecipeCategory*> *RecipeMenuCategories() {return (BSSimpleArray<TESRecipeCategory*>*)0x11D8F08;}
+	__forceinline TESObjectWEAP *PlayerWeapon() {return *(TESObjectWEAP**)0x11D98D4;}
+	__forceinline tList<VATSTarget> *VATSTargetList() {return (tList<VATSTarget>*)0x11DB150;}
+	__forceinline NiNode *ObjectLODRoot() {return *(NiNode**)0x11DEA18;}
+	__forceinline bool *GamePadRumble() {return (bool*)0x11E0854;}
+	__forceinline UInt32 TickCount() {return *(UInt32*)0x11F63A8;}
+	__forceinline tList<Archive> *ArchivesList() {return *(tList<Archive>**)0x11F8160;}
+	__forceinline LightCS *SceneLightsLock() {return (LightCS*)0x11F9EA0;}
+	__forceinline UInt32 *LightingPasses() {return (UInt32*)0x11F91D8;}
+	__forceinline tList<ListBox<int>> *ActiveListBoxes() {return (tList<ListBox<int>>*)0x11D8B54;}
+	__forceinline tList<GradualSetFloat> *QueuedGradualSetFloat() {return (tList<GradualSetFloat>*)0x11F3348;}
+	__forceinline RadioEntry *PipboyRadio() {return *(RadioEntry**)0x11DD42C;}
 };
 
 extern void *g_scrapHeapQueue;
 extern NiNode *s_pc1stPersonNode, *g_cursorNode;
-extern float g_screenResConvert, g_screenWidth, g_screenHeight;
+extern float g_screenWidth, g_screenHeight;
 extern const char *g_terminalModelDefault;
 extern TESObjectWEAP *g_fistsWeapon;
 extern TESObjectACTI *g_ashPileACTI, *g_gooPileACTI;
@@ -122,10 +122,6 @@ __forceinline NiNode *GetCdBodyNode(hkpWorldObject *object)
 __forceinline TESObjectREFR *GetCdBodyRef(hkpWorldObject *object)
 {
 	return CdeclCall<TESObjectREFR*>(0x62B4E0, &object->cdBody);
-}
-__forceinline void RefreshItemListBox()
-{
-	CdeclCall(0x704AF0);
 }
 __forceinline float ApplyAmmoEffects(UInt32 effType, AmmoEffectList *effList, float baseValue)
 {
@@ -153,7 +149,7 @@ __forceinline ImageSpaceModifierInstanceForm *ApplyIMOD(TESImageSpaceModifier *i
 }
 __forceinline void *PurgeTerminalModel()
 {
-	return CdeclCall<void*>(0x7FFE00);
+	return CdeclCall<void*>(ADDR_PurgeTerminalModel);
 }
 __forceinline TileMenu *ShowQuantityMenu(int maxCount, void (*callback)(int), int defaultCount)
 {
@@ -167,6 +163,9 @@ __forceinline void *NiDeallocator(void *blockPtr, UInt32 size)
 {
 	return CdeclCall<void*>(0xAA1460, blockPtr, size);
 }
+
+void InitResolvedModIndices();
+UInt32 __stdcall GetResolvedRefID(UInt32 refID);
 
 enum
 {
@@ -231,12 +230,18 @@ struct ResultVars
 
 	void __vectorcall Set(__m128 values);
 	void __vectorcall Set(__m128 values, const __m128 modifier);
+	inline void Set(double _x, double _y, double _z)
+	{
+		x->data = _x;
+		y->data = _y;
+		z->data = _z;
+	}
 };
 
-typedef Set<TESForm*> TempFormList;
+typedef Set<TESForm*, 0x40> TempFormList;
 TempFormList *GetTempFormList();
 
-typedef Vector<ArrayElementL> TempElements;
+typedef Vector<ArrayElementL, 0x100> TempElements;
 TempElements *GetTempElements();
 
 UInt32 __fastcall StringToRef(char *refStr);
@@ -249,16 +254,16 @@ struct InventoryItemData
 	InventoryItemData(SInt32 _count, ContChangesEntry *_entry) : count(_count), entry(_entry) {}
 };
 
-typedef UnorderedMap<TESForm*, InventoryItemData> InventoryItemsMap;
+typedef UnorderedMap<TESForm*, InventoryItemData, 0x40> InventoryItemsMap;
 InventoryItemsMap *GetInventoryItemsMap();
 
 bool GetInventoryItems(TESObjectREFR *refr, UInt8 typeID, InventoryItemsMap *invItemsMap);
 
 void __fastcall ShowItemMessage(TESForm *item, const char *msgStr);
 
-NiAVObject* __stdcall GetRayCastObject(const NiVector3 &posVector, float *rotMatRow, float maxRange, UInt32 filter);
+NiAVObject* __stdcall GetRayCastObject(const NiVector3 &posVector, float *rotMatRow, float maxRange, SInt32 layerType);
 
-int __stdcall GetRayCastMaterial(const NiVector3 &posVector, float *rotMatRow, float maxRange, UInt32 filter);
+int __stdcall GetRayCastMaterial(const NiVector3 &posVector, float *rotMatRow, float maxRange, SInt32 layerType);
 
 struct AppearanceUndo
 {
@@ -393,7 +398,7 @@ class AuxVariableValue
 	{
 		if (alloc)
 		{
-			Pool_Free(str, alloc);
+			Pool_CFree(str, alloc);
 			alloc = 0;
 		}
 	}
@@ -424,7 +429,7 @@ public:
 		refID = value ? value->refID : 0;
 	}
 
-	__declspec(noinline) void operator=(const char *value)
+	_NOINLINE void operator=(const char *value)
 	{
 		type = 4;
 		length = StrLen(value);
@@ -433,11 +438,11 @@ public:
 			UInt16 size = length + 1;
 			if (alloc < size)
 			{
-				if (alloc) Pool_Free(str, alloc);
-				alloc = AlignNumAlloc<char>(size);
-				str = (char*)Pool_Alloc(alloc);
+				if (alloc) Pool_CFree(str, alloc);
+				alloc = (size + 0x10) & 0xFFF0;
+				str = Pool_CAlloc(alloc);
 			}
-			memcpy(str, value, size);
+			COPY_BYTES(str, value, size);
 		}
 		else if (alloc)
 			*str = 0;
@@ -459,7 +464,7 @@ public:
 		return ArrayElementL(num);
 	}
 
-	__declspec(noinline) UInt32 ReadValData(UInt8 *bufPos)
+	_NOINLINE UInt32 ReadValData(UInt8 *bufPos)
 	{
 		if (type == 1)
 		{
@@ -468,16 +473,15 @@ public:
 		}
 		if (type == 2)
 		{
-			refID = *(UInt32*)bufPos;
-			ResolveRefID(refID, &refID);
+			refID = GetResolvedRefID(*(UInt32*)bufPos);
 			return 4;
 		}
 		length = *(UInt16*)bufPos;
 		if (length)
 		{
-			alloc = AlignNumAlloc<char>(length + 1);
-			str = (char*)Pool_Alloc(alloc);
-			memcpy(str, bufPos + 2, length);
+			alloc = (length + 0x11) & 0xFFF0;
+			str = Pool_CAlloc(alloc);
+			COPY_BYTES(str, bufPos + 2, length);
 			str[length] = 0;
 		}
 		return length + 2;
@@ -500,13 +504,13 @@ public:
 static_assert(sizeof(AuxVariableValue) == 0x10);
 
 typedef Vector<AuxVariableValue, 2> AuxVarValsArr;
-typedef UnorderedMap<char*, AuxVarValsArr> AuxVarVarsMap;
+typedef UnorderedMap<char*, AuxVarValsArr, 4> AuxVarVarsMap;
 typedef UnorderedMap<UInt32, AuxVarVarsMap> AuxVarOwnersMap;
 typedef UnorderedMap<UInt32, AuxVarOwnersMap> AuxVarModsMap;
 extern TempObject<AuxVarModsMap> s_auxVariablesPerm, s_auxVariablesTemp;
 
-typedef UnorderedMap<UInt32, AuxVariableValue> RefMapIDsMap;
-typedef UnorderedMap<char*, RefMapIDsMap> RefMapVarsMap;
+typedef UnorderedMap<UInt32, AuxVariableValue, 4> RefMapIDsMap;
+typedef UnorderedMap<char*, RefMapIDsMap, 4> RefMapVarsMap;
 typedef UnorderedMap<UInt32, RefMapVarsMap> RefMapModsMap;
 extern TempObject<RefMapModsMap> s_refMapArraysPerm, s_refMapArraysTemp;
 
@@ -603,13 +607,13 @@ class QuestStageEventFinder
 public:
 	QuestStageEventFinder(QuestStageEventCallback &_callback) : m_callback(&_callback) {}
 
-	bool operator()(const QuestStageEventCallback &rhs)
+	bool operator==(const QuestStageEventCallback &rhs)
 	{
 		return (m_callback->stageID == rhs.stageID) && (m_callback->callback == rhs.callback);
 	}
 };
 
-struct AnimEventCallbacks : UnorderedMap<UInt32, EventCallbackScripts> {};
+typedef UnorderedMap<UInt32, EventCallbackScripts> AnimEventCallbacks;
 
 struct CriticalHitEventData
 {
@@ -633,7 +637,7 @@ class CriticalHitEventFind
 public:
 	CriticalHitEventFind(CriticalHitEventData &_data) : data(&_data) {}
 
-	bool operator()(const CriticalHitEventData &rhs)
+	bool operator==(const CriticalHitEventData &rhs)
 	{
 		return (data->callback == rhs.callback) && (!rhs.target || (data->target == rhs.target)) && 
 			(!rhs.source || (data->source == rhs.source)) && (!rhs.weapon || (data->weapon == rhs.weapon));
@@ -647,7 +651,7 @@ class CriticalHitEventRemove
 public:
 	CriticalHitEventRemove(CriticalHitEventData &_data) : data(&_data) {}
 
-	bool operator()(const CriticalHitEventData &rhs)
+	bool operator==(const CriticalHitEventData &rhs)
 	{
 		return (data->callback == rhs.callback) && (!data->target || (data->target == rhs.target)) && 
 			(!data->source || (data->source == rhs.source)) && (!data->weapon || (data->weapon == rhs.weapon));
@@ -674,7 +678,7 @@ class DisabledBlockFinder
 public:
 	DisabledBlockFinder(UInt8 _blockType) : blockType(_blockType) {}
 
-	bool operator()(const DisabledBlockInfo &rhs) {return rhs.blockType == blockType;}
+	bool operator==(const DisabledBlockInfo &rhs) {return rhs.blockType == blockType;}
 };
 
 class ScriptBlockIterator
@@ -778,7 +782,7 @@ struct ArrayData
 			if (!isPacked) alloc *= 2;
 			vals = (ArrayElementR*)AuxBuffer::Get(2, alloc);
 			keys = isPacked ? nullptr : (vals + size);
-			MemZero(vals, alloc);
+			MEM_ZERO(vals, alloc);
 			if (!GetElements(srcArr, vals, keys))
 				size = 0;
 		}
@@ -872,6 +876,10 @@ extern bool s_HUDCursorMode;
 
 bool GetMenuMode();
 
+extern bool s_mapMenuSkipSetXY;
+
+void RefreshItemListBox();
+
 bool IsConsoleOpen();
 
 void SuppressConsoleOutput();
@@ -912,7 +920,7 @@ static_assert(sizeof(TLSData) == 0x2C0);
 
 TLSData *GetTLSData();
 
-extern TempObject<UnorderedMap<const char*, UInt32>> s_fileExtToType;
+extern TempObject<UnorderedMap<const char*, UInt32, 0x20, false>> s_fileExtToType;
 
 bool __fastcall GetFileArchived(const char *filePath);
 

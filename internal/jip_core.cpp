@@ -62,7 +62,7 @@ NiNode *s_pc1stPersonNode = nullptr, *g_cursorNode;
 ShadowSceneNode *g_shadowSceneNode;
 BSClearZNode *g_LODRootNode;
 TESObjectREFR *s_tempPosMarker;
-float g_screenResConvert, g_screenWidth, g_screenHeight;
+float g_screenWidth, g_screenHeight;
 const char *g_terminalModelDefault;
 TESObjectWEAP *g_fistsWeapon;
 TESObjectACTI *g_ashPileACTI, *g_gooPileACTI;
@@ -125,7 +125,7 @@ const char kMenuIDJumpTable[] =
 
 UInt32 s_serializedFlags = 0;
 
-__declspec(naked) void __vectorcall ResultVars::Set(__m128 values)
+_NAKED void __vectorcall ResultVars::Set(__m128 values)
 {
 	__asm
 	{
@@ -143,7 +143,7 @@ __declspec(naked) void __vectorcall ResultVars::Set(__m128 values)
 	}
 }
 
-__declspec(naked) void __vectorcall ResultVars::Set(__m128 values, const __m128 modifier)
+_NAKED void __vectorcall ResultVars::Set(__m128 values, const __m128 modifier)
 {
 	__asm
 	{
@@ -161,18 +161,81 @@ __declspec(naked) void __vectorcall ResultVars::Set(__m128 values, const __m128 
 	}
 }
 
-__declspec(noinline) TempFormList *GetTempFormList()
+_NOINLINE TempFormList *GetTempFormList()
 {
-	thread_local TempObject<TempFormList> s_tempFormList(0x40);
-	s_tempFormList().Clear();
+	thread_local static TempObject<TempFormList> s_tempFormList;
+	s_tempFormList->Clear();
 	return *s_tempFormList;
 }
 
-__declspec(noinline) TempElements *GetTempElements()
+_NOINLINE TempElements *GetTempElements()
 {
-	thread_local TempObject<TempElements> s_tempElements(0x100);
-	s_tempElements().Clear();
+	thread_local static TempObject<TempElements> s_tempElements;
+	s_tempElements->Clear();
 	return *s_tempElements;
+}
+
+UInt8 s_resolvedModIndices[0x100];
+
+_NAKED void InitResolvedModIndices()
+{
+	__asm
+	{
+		push	ebx
+		push	esi
+		push	edi
+		mov		esi, offset s_resolvedModIndices
+		mov		ecx, 0x40
+		mov		eax, 0xFFFFFFFF
+		mov		edi, esi
+		rep stosd
+		mov		eax, g_numPreloadMods
+		movzx	edi, byte ptr [eax]
+		xor		ebx, ebx
+		push	ecx
+		push	esp
+		push	ecx
+		ALIGN 16
+	iterHead:
+		cmp		ebx, edi
+		jnb		done
+		mov		[esp+3], bl
+		call	ResolveRefID
+		mov		ecx, ebx
+		inc		ebx
+		test	al, al
+		jz		iterHead
+		mov		al, [esp+0xB]
+		mov		byte ptr [ecx+esi], al
+		jmp		iterHead
+		ALIGN 16
+	done:
+		add		esp, 0xC
+		pop		edi
+		pop		esi
+		pop		ebx
+		retn
+	}
+}
+
+_NAKED UInt32 __stdcall GetResolvedRefID(UInt32 refID)
+{
+	__asm
+	{
+		movzx	eax, byte ptr [esp+7]
+		cmp		al, 0xFF
+		jz		retnArg
+		mov		cl, s_resolvedModIndices[eax]
+		cmp		cl, 0xFF
+		jz		retn0
+		mov		[esp+7], cl
+	retnArg:
+		mov		eax, [esp+4]
+		retn	4
+	retn0:
+		xor		eax, eax
+		retn	4
+	}
 }
 
 TempObject<UnorderedMap<const char*, UInt32>> s_strRefs;
@@ -180,7 +243,7 @@ TempObject<UnorderedMap<const char*, UInt32>> s_strRefs;
 UInt32 __fastcall StringToRef(char *refStr)
 {
 	UInt32 *findStr;
-	if (!s_strRefs().Insert(refStr, &findStr)) return *findStr;
+	if (!s_strRefs->InsertKey(refStr, &findStr)) return *findStr;
 	*findStr = 0;
 	char *colon = FindChr(refStr, ':');
 	if (colon)
@@ -197,13 +260,13 @@ UInt32 __fastcall StringToRef(char *refStr)
 		*findStr = (modIdx << 24) | HexToUInt(colon + 1);
 		return *findStr;
 	}
-	return ResolveRefID(HexToUInt(refStr), findStr) ? *findStr : 0;
+	return *findStr = GetResolvedRefID(HexToUInt(refStr));
 }
 
-__declspec(noinline) InventoryItemsMap *GetInventoryItemsMap()
+_NOINLINE InventoryItemsMap *GetInventoryItemsMap()
 {
-	thread_local TempObject<InventoryItemsMap> s_inventoryItemsMap(0x40);
-	s_inventoryItemsMap().Clear();
+	thread_local static TempObject<InventoryItemsMap> s_inventoryItemsMap;
+	s_inventoryItemsMap->Clear();
 	return *s_inventoryItemsMap;
 }
 
@@ -255,7 +318,7 @@ bool GetInventoryItems(TESObjectREFR *refr, UInt8 typeID, InventoryItemsMap *inv
 	return !invItemsMap->Empty();
 }
 
-__declspec(naked) void __fastcall ShowItemMessage(TESForm *item, const char *msgStr)
+_NAKED void __fastcall ShowItemMessage(TESForm *item, const char *msgStr)
 {
 	__asm
 	{
@@ -296,10 +359,12 @@ struct alignas(16) RayCastData
 	UInt8			pad21[3];	// 21
 	UInt8			layerType;	// 24
 	UInt8			filterFlags;// 25
-	UInt8			pad26[2];	// 26
+	UInt16			group;		// 26
 	UInt32			unk28[6];	// 28
 	float			flt40;		// 40
-	UInt32			unk44[19];	// 44
+	UInt32			unk44[15];	// 44
+	hkCdBody		*cdBody;	// 80
+	UInt32			unk84[3];	// 84
 	AlignedVector4	vector90;	// 90
 	UInt32			unkA0[3];	// A0
 	UInt8			byteAC;		// AC
@@ -307,7 +372,7 @@ struct alignas(16) RayCastData
 };
 static_assert(sizeof(RayCastData) == 0xB0);
 
-__declspec(naked) NiAVObject* __fastcall _GetRayCastObject(RayCastData *rcData)
+_NAKED NiAVObject* __fastcall _GetRayCastObject(RayCastData *rcData)
 {
 	__asm
 	{
@@ -351,7 +416,7 @@ __declspec(naked) NiAVObject* __fastcall _GetRayCastObject(RayCastData *rcData)
 		mov		edx, 6
 		test	eax, eax
 		cmovs	eax, edx
-		and		eax, 0x3F
+		and		eax, 0x7F
 		mov		cx, ax
 		mov		[ebx+0x24], ecx
 		push	1
@@ -366,7 +431,7 @@ __declspec(naked) NiAVObject* __fastcall _GetRayCastObject(RayCastData *rcData)
 	}
 }
 
-__declspec(naked) NiAVObject* __stdcall GetRayCastObject(const NiVector3 &posVector, float *rotMatRow, float maxRange, UInt32 filter)
+_NAKED NiAVObject* __stdcall GetRayCastObject(const NiVector3 &posVector, float *rotMatRow, float maxRange, SInt32 layerType)
 {
 	__asm
 	{
@@ -381,7 +446,7 @@ __declspec(naked) NiAVObject* __stdcall GetRayCastObject(const NiVector3 &posVec
 	}
 }
 
-__declspec(naked) bool NiVector4::RayCastCoords(const NiVector3 &posVector, float *rotMatRow, float maxRange, UInt32 filter)
+_NAKED bool NiVector4::RayCastCoords(const NiVector3 &posVector, float *rotMatRow, float maxRange, SInt32 layerType)
 {
 	__asm
 	{
@@ -426,7 +491,7 @@ __declspec(naked) bool NiVector4::RayCastCoords(const NiVector3 &posVector, floa
 	}
 }
 
-__declspec(naked) int __stdcall GetRayCastMaterial(const NiVector3 &posVector, float *rotMatRow, float maxRange, UInt32 filter)
+_NAKED int __stdcall GetRayCastMaterial(const NiVector3 &posVector, float *rotMatRow, float maxRange, SInt32 layerType)
 {
 	__asm
 	{
@@ -510,24 +575,23 @@ TempObject<UnorderedMap<TESNPC*, AppearanceUndo*>> s_appearanceUndoMap;
 
 TempObject<UnorderedSet<TESGlobal*>> s_resolvedGlobals;
 
-__declspec(naked) UInt32 TESGlobal::ResolveRefValue()
+_NAKED UInt32 TESGlobal::ResolveRefValue()
 {
 	__asm
 	{
 		mov		word ptr [ecx+6], 1
 		push	esi
 		lea		esi, [ecx+0x24]
-		cmp		byte ptr [esi], 0xFF
+		mov		eax, [esi]
+		cmp		al, 0xFF
 		jz		doLookup
-		push	esi
-		push	dword ptr [esi]
-		call	ResolveRefID
-		add		esp, 8
-		movzx	eax, al
+		push	eax
+		call	GetResolvedRefID
 		test	eax, eax
 		jz		invalid
+		mov		[esi], eax
 	doLookup:
-		push	dword ptr [esi]
+		push	eax
 		call	LookupFormByRefID
 		test	eax, eax
 		jz		invalid
@@ -619,7 +683,7 @@ TempObject<UnorderedMap<UInt32, VariableNames>> s_addedVariables;
 
 bool __fastcall GetVariableAdded(UInt32 ownerID, char *varName)
 {
-	VariableNames *findOwner = s_addedVariables().GetPtr(ownerID);
+	VariableNames *findOwner = s_addedVariables->GetPtr(ownerID);
 	if (!findOwner) return false;
 	return findOwner->HasKey(varName);
 }
@@ -644,7 +708,7 @@ ScriptVar *Script::AddVariable(char *varName, ScriptEventList *eventList, UInt32
 		var = (ScriptVar*)GameHeapAlloc(sizeof(ScriptVar));
 		var->id = varInfo->idx;
 		var->next = nullptr;
-		var->data.num = 0;
+		var->data = 0.0;
 		eventList->m_vars->Append(var);
 	}
 
@@ -653,7 +717,7 @@ ScriptVar *Script::AddVariable(char *varName, ScriptEventList *eventList, UInt32
 	return var;
 }
 
-__declspec(naked) TESIdleForm *AnimData::GetPlayedIdle()
+_NAKED TESIdleForm *AnimData::GetPlayedIdle()
 {
 	__asm
 	{
@@ -689,7 +753,7 @@ bool TESObjectREFR::SetLinkedRef(TESObjectREFR *linkObj = nullptr, UInt8 modIdx)
 	ExtraLinkedRef *xLinkedRef = GetExtraType(&extraDataList, LinkedRef);
 	if (!linkObj)
 	{
-		auto findDefID = s_linkedRefDefault().Find(refID);
+		auto findDefID = s_linkedRefDefault->Find(refID);
 		if (findDefID)
 		{
 			if (xLinkedRef)
@@ -703,7 +767,7 @@ bool TESObjectREFR::SetLinkedRef(TESObjectREFR *linkObj = nullptr, UInt8 modIdx)
 			}
 			findDefID.Remove();
 		}
-		s_linkedRefModified().Erase(refID);
+		s_linkedRefModified->Erase(refID);
 		return true;
 	}
 	if (!xLinkedRef)
@@ -940,7 +1004,7 @@ float __fastcall GetModBonuses(TESObjectREFR *wpnRef, UInt32 effectID)
 	return result;
 }
 
-__declspec(naked) float __vectorcall GetLightAmount(LightingData *lightingData, __m128 pos)
+_NAKED float __vectorcall GetLightAmount(LightingData *lightingData, __m128 pos)
 {
 	__asm
 	{
@@ -978,7 +1042,7 @@ __declspec(naked) float __vectorcall GetLightAmount(LightingData *lightingData, 
 	}
 }
 
-__declspec(naked) float __vectorcall GetLightAmountAtPoint(const NiVector3 &pos)
+_NAKED float __vectorcall GetLightAmountAtPoint(const NiVector3 &pos)
 {
 	__asm
 	{
@@ -1102,7 +1166,7 @@ namespace JIPScriptRunner
 			fileName = const_cast<char*>(*iter);
 			if (fileName[2] != '_') continue;
 			StrCopy(scriptsPath + 26, fileName);
-			if (!FileToBuffer(scriptsPath, buffer))
+			if (!FileToBuffer(scriptsPath, buffer, STR_BUFFER_SIZE - 1))
 				continue;
 			switch (*(UInt16*)fileName |= 0x2020)
 			{
@@ -1124,7 +1188,7 @@ namespace JIPScriptRunner
 
 	void RunScripts(UInt16 type)
 	{
-		for (auto iter = s_cachedScripts().Begin(); iter; ++iter)
+		for (auto iter = s_cachedScripts->Begin(); iter; ++iter)
 		{
 			if (*(UInt16*)iter.Key() != type) continue;
 			if (iter->info.dataLength)
@@ -1181,7 +1245,32 @@ bool GetMenuMode()
 	return (g_interfaceManager->currentMode > 1) || s_HUDCursorMode;
 }
 
-__declspec(naked) bool IsConsoleOpen()
+void __fastcall RefreshRecipeMenu(RecipeMenu *menu);
+
+_NOINLINE void RefreshItemListBox()
+{
+	if (MENU_VISIBILITY[kMenuType_Inventory])
+		CdeclCall(0x782A90);
+	else if (MENU_VISIBILITY[kMenuType_Stats])
+		ThisCall(0x7DF230, StatsMenu::Get(), 4);
+	else if (MENU_VISIBILITY[kMenuType_Container])
+		ContainerMenu::Get()->Refresh(nullptr);
+	else if (MENU_VISIBILITY[kMenuType_Map])
+	{
+		MapMenu *mapMenu = MapMenu::Get();
+		if (mapMenu->currentTab == MapMenu::kTab_WorldMap)
+		{
+			s_mapMenuSkipSetXY = true;
+			ThisCall(0x79DBB0, mapMenu);
+		}
+	}
+	else if (MENU_VISIBILITY[kMenuType_Barter])
+		CdeclCall(0x730690, 1);
+	else if (MENU_VISIBILITY[kMenuType_Recipe])
+		RefreshRecipeMenu(RecipeMenu::Get());
+}
+
+_NAKED bool IsConsoleOpen()
 {
 	__asm
 	{
@@ -1197,7 +1286,7 @@ __declspec(naked) bool IsConsoleOpen()
 	}
 }
 
-__declspec(naked) void SuppressConsoleOutput()
+_NAKED void SuppressConsoleOutput()
 {
 	__asm
 	{
@@ -1209,7 +1298,7 @@ __declspec(naked) void SuppressConsoleOutput()
 	}
 }
 
-__declspec(naked) void __fastcall DoConsolePrint(double *result)
+_NAKED void __fastcall DoConsolePrint(double *result)
 {
 	__asm
 	{
@@ -1242,7 +1331,7 @@ __declspec(naked) void __fastcall DoConsolePrint(double *result)
 	}
 }
 
-__declspec(naked) void __fastcall DoConsolePrint(TESForm *result)
+_NAKED void __fastcall DoConsolePrint(TESForm *result)
 {
 	__asm
 	{
@@ -1303,7 +1392,7 @@ bool IsInMainThread()
 	return GetCurrentThreadId() == s_mainThreadID;
 }
 
-__declspec(naked) TLSData *GetTLSData()
+_NAKED TLSData *GetTLSData()
 {
 	__asm
 	{
@@ -1314,11 +1403,9 @@ __declspec(naked) TLSData *GetTLSData()
 	}
 }
 
-TempObject<UnorderedMap<const char*, UInt32>> s_fileExtToType(std::initializer_list<MappedPair<const char*, UInt32>>({{"nif", 1}, {"egm", 1},
-	{"egt", 1}, {"kf", 1}, {"psa", 1}, {"tri", 1}, {"dds", 2}, {"fnt", 2}, {"psd", 2}, {"tai", 2}, {"tex", 2}, {"wav", 8}, {"lip", 0x10},
-	{"ogg", 0x10}, {"spt", 0x40}, {"ctl", 0x100}, {"dat", 0x100}, {"dlodsettings", 0x100}, {"xml", 0x100}}));
+TempObject<UnorderedMap<const char*, UInt32, 0x20, false>> s_fileExtToType;
 
-__declspec(naked) bool __fastcall GetFileArchived(const char *filePath)
+_NAKED bool __fastcall GetFileArchived(const char *filePath)
 {
 	__asm
 	{
@@ -1328,9 +1415,7 @@ __declspec(naked) bool __fastcall GetFileArchived(const char *filePath)
 		push	esi
 		push	edi
 		mov		esi, ecx
-		call	StrLen
-		push	'.'
-		mov		edx, eax
+		mov		dl, '.'
 		call	FindChrR
 		test	eax, eax
 		jz		retnFalse
@@ -1390,7 +1475,7 @@ __declspec(naked) bool __fastcall GetFileArchived(const char *filePath)
 	}
 }
 
-__declspec(naked) int __stdcall FileExistsEx(char *filePath, bool isFolder)
+_NAKED int __stdcall FileExistsEx(char *filePath, bool isFolder)
 {
 	__asm
 	{
@@ -1433,7 +1518,7 @@ int GetIsLAA()
 		if (isLAA)
 		{
 			void *blockPtrs[20], *block;
-			MemZero(blockPtrs, 0x50);
+			MEM_ZERO(blockPtrs, 0x50);
 			int idx = 0;
 			do
 			{
