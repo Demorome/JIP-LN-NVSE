@@ -289,6 +289,20 @@ __declspec(naked) MagicItem *TESForm::GetMagicItem() const
 	}
 }
 
+bool TESForm::IsActivatable() const
+{
+	auto const t = typeID;
+	return (t >= kFormType_TESObjectACTI && t <= kFormType_TESObjectBOOK)
+		|| t == kFormType_TESObjectCONT || t == kFormType_TESObjectDOOR
+		|| t == kFormType_TESObjectMISC || t == kFormType_BGSPlaceableWater
+		|| (t >= kFormType_TESFurniture && t <= kFormType_TESCreature)
+		|| t == kFormType_TESKey || t == kFormType_AlchemyItem
+		|| t == kFormType_BGSNote || t == kFormType_BGSProjectile
+		|| t == kFormType_TESObjectIMOD || t == kFormType_TESCasinoChips
+		// Caravan decks can't be placed in the game world.
+		|| t == kFormType_TESCaravanCard || t == kFormType_TESCaravanMoney;
+}
+
 __declspec(naked) SInt32 __fastcall TESContainer::GetCountForForm(TESForm *form) const
 {
 	__asm

@@ -105,7 +105,7 @@ enum FormType
 	/*64*/kFormType_DOBJ,
 	/*65*/kFormType_BGSLightingTemplate,
 	/*66*/kFormType_BGSMusicType,
-	/*67*/kFormType_TESObjectIMOD,
+	/*67*/kFormType_TESObjectIMOD, // weapon mods
 	/*68*/kFormType_TESReputation,
 	/*69*/kFormType_ContinuousBeamProjectile,
 	/*6A*/kFormType_TESRecipe,
@@ -300,6 +300,8 @@ public:
 	TESLeveledList *GetLvlList() const;
 	MagicItem *GetMagicItem() const;
 	void SetJIPFlag(UInt16 jipFlag, bool bSet);
+	// Returns true if the form can typically be activated.
+	[[nodiscard]] bool IsActivatable() const;
 
 	__forceinline void MarkModified(UInt32 modFlag)
 	{

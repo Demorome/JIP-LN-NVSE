@@ -100,6 +100,8 @@ DEFINE_COMMAND_PLUGIN(AttachLine, 1, 7, kParams_TwoStrings_FiveFloats);
 DEFINE_COMMAND_PLUGIN(ToggleNoZPosReset, 1, 1, kParams_OneInt);
 DEFINE_COMMAND_PLUGIN(RotateAroundPoint, 1, 7, kParams_SixFloats_OneOptionalInt);
 DEFINE_COMMAND_PLUGIN(ToggleNodeCollision, 1, 2, kParams_OneString_OneInt);
+DEFINE_CMD_COND_PLUGIN(IsActivatable, 0, 1, kParams_OneForm);
+DEFINE_CMD_COND_PLUGIN(GetPCCanActivate, 1, 0, nullptr);
 
 bool Cmd_SetPersistent_Execute(COMMAND_ARGS)
 {
@@ -730,6 +732,48 @@ bool Cmd_SetInteractionDisabledType_Execute(COMMAND_ARGS)
 		HOOK_MOD(SetRolloverText, add);
 	}
 	return true;
+}
+
+bool Cmd_IsActivatable_Eval(COMMAND_ARGS_EVAL)
+{
+	*result = static_cast<TESForm*>(arg1)->IsActivatable();
+	return true;
+}
+bool Cmd_IsActivatable_Execute(COMMAND_ARGS)
+{
+	TESForm* form;
+	*result = 0;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form))
+		*result = form->IsActivatable();
+	return true;
+}
+
+bool Cmd_GetPCCanActivate_Eval(COMMAND_ARGS_EVAL)
+{
+	*result = 0;
+	if (!thisObj->IsActivatable())
+		return true;
+	// If IsInaccessibleDoor (0x57B490)
+	if (thisObj->typeID == kFormType_TESObjectDOOR && (thisObj->baseForm->flags & 0x100) != 0)
+		return true;
+	if (thisObj->IsDestroyed())
+		return true;
+	if (const ExtraActivateRef* xActivate = GetExtraType(&thisObj->extraDataList, ActivateRef))
+		if ((int)xActivate->flags) // if IsParentActivateOnly
+			return true;
+	if (s_activationDisabledTypes[thisObj->typeID])
+		return true;
+	if (thisObj->jipFormFlags6 & kHookFormFlag6_NoPCActivation)
+		return true;
+
+	// ### todo: account for hostile actors (possibly copy code at 0x7772CE)
+
+	*result = 1;
+	return true;
+}
+bool Cmd_GetPCCanActivate_Execute(COMMAND_ARGS)
+{
+	return Cmd_GetPCCanActivate_Eval(thisObj, nullptr, nullptr, result);
 }
 
 bool Cmd_AddRefMapMarker_Execute(COMMAND_ARGS)
