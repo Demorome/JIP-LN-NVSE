@@ -168,9 +168,9 @@ public:
 		explicit operator bool() const {return m_curr != NULL;}
 		void operator++() {m_curr = m_curr->next;}
 
-		Item *Get() const {return m_curr->data;}
+		Item* Get() const {return m_curr->data;}
 		Item* operator->() const {return m_curr->data;}
-		Item*& operator*() const {return m_curr->data;}
+		Item* operator*() const {return m_curr->data;}
 
 		const Iterator& operator=(const Iterator &rhs)
 		{
@@ -540,7 +540,7 @@ template <typename T_Data> struct DListNode
 template <class Item> class DList
 {
 public:
-	typedef DListNode<Item> Node;
+	using Node = DListNode<Item>;
 
 private:
 	Node		*first;

@@ -117,7 +117,9 @@ public:
 	int					lastMouseWheelScroll;	// 1B40
 	UInt8				lastButtonStates[8];	// 1B44
 	UInt32				ltrtButtonState;		// 1B4C
-	UInt32				unk1B50[2];				// 1B50
+	UInt8				mouseSensitivity;		// 1B50
+	UInt8				pad1B51[3];				// 1B51
+	UInt32				unk1B54;				// 1B54
 	UInt8				buttonStates1B58[8];	// 1B58
 	UInt32				unk1B60[8];				// 1B60
 	UInt32				*controllerVibration;	// 1B80
@@ -172,7 +174,7 @@ class BSTCommonScrapHeapMessageQueue
 {
 public:
 	virtual void	Destroy(bool doFree);
-	virtual void	Unk_01(void);
+	virtual bool	QueueTask(BSPackedTask *pTask);
 	virtual void	Unk_02(void);
 	virtual void	Unk_03(void);
 	virtual void	Unk_04(void);
@@ -193,6 +195,18 @@ public:
 	UInt8				pad25[3];		// 25
 };
 
+// 10
+struct TaskQueueInterface
+{
+	BSTCommonScrapHeapMessageQueue	*taskQueueMain;	// 00
+	BSTCommonScrapHeapMessageQueue	*taskQueueScnd;	// 04
+	BSTCommonScrapHeapMessageQueue	*taskQueue;		// 08	Same as main
+	UInt32							threadID;		// 0C
+
+	__forceinline static TaskQueueInterface *GetSingleton() {return *(TaskQueueInterface**)0x11DF1A8;}
+};
+extern TaskQueueInterface *g_scrapHeapQueue;
+
 // A4
 class OSGlobals
 {
@@ -200,7 +214,7 @@ public:
 	UInt8							oneMore;		// 00
 	UInt8							quitGame;		// 01
 	UInt8							exitToMainMenu;	// 02
-	UInt8							byte03;			// 03
+	UInt8							isWindowActive;	// 03
 	UInt8							byte04;			// 04
 	UInt8							byte05;			// 05
 	UInt8							tfcState;		// 06
@@ -208,7 +222,7 @@ public:
 	HWND							window;			// 08
 	HINSTANCE						procInstance;	// 0C
 	UInt32							mainThreadID;	// 10
-	UInt32							unk14;			// 14
+	HANDLE							mainThreadHandle;	// 14
 	ScrapHeapBuffer					shBuffer18;		// 18
 	BSTCommonScrapHeapMessageQueue	shQueue28;		// 28
 	ScrapHeapBuffer					shBuffer50;		// 50

@@ -208,8 +208,8 @@ __declspec(naked) void __fastcall cvtul2d(UInt32 value, double *result)
 {
 	__asm
 	{
-		movd	xmm0, ecx
-		movlpd	[edx], xmm0
+		mov		[edx], ecx
+		and		dword ptr [edx+4], 0
 		fild	qword ptr [edx]
 		fstp	qword ptr [edx]
 		retn
@@ -970,7 +970,7 @@ __declspec(naked) char __fastcall StrCompareCS(const char *lstr, const char *rst
 		jz		done
 		bsf		ecx, eax
 		bsf		edx, edx
-		xor		al, al
+		xor		eax, eax
 		cmp		cl, dl
 		ja		done
 		pcmpgtb	xmm0, xmm1
@@ -979,8 +979,7 @@ __declspec(naked) char __fastcall StrCompareCS(const char *lstr, const char *rst
 		bsf		edx, edx
 		cmp		cl, dl
 		setz	al
-		setnz	dl
-		sub		al, dl
+		lea		eax, [eax+eax-1]
 		add		ecx, edi
 	done:
 		pop		edi
@@ -1068,7 +1067,7 @@ __declspec(naked) char __fastcall StrCompareCI(const char *lstr, const char *rst
 		jz		done
 		bsf		ecx, eax
 		bsf		edx, edx
-		xor		al, al
+		xor		eax, eax
 		cmp		cl, dl
 		ja		done
 		pcmpgtb	xmm0, xmm1
@@ -1077,8 +1076,7 @@ __declspec(naked) char __fastcall StrCompareCI(const char *lstr, const char *rst
 		bsf		edx, edx
 		cmp		cl, dl
 		setz	al
-		setnz	dl
-		sub		al, dl
+		lea		eax, [eax+eax-1]
 		add		ecx, edi
 	done:
 		pop		edi
@@ -1307,52 +1305,50 @@ __declspec(naked) const char* __fastcall SubStrCI(const char *srcStr, const char
 {
 	__asm
 	{
-		push	ebp
 		push	ebx
 		push	esi
 		push	edi
 		mov		esi, ecx
 		mov		edi, edx
-		mov		ecx, edx
 		call	StrLen
 		test	eax, eax
 		jz		retnNull
-		mov		ebp, eax
-		mov		ecx, esi
-		call	StrLen
-		sub		eax, ebp
-		js		retnNull
 		mov		ebx, eax
-		xor		edx, edx
-		dec		esi
-		ALIGN 16
-	mainHead:
-		dec		ebx
+		mov		ecx, edi
+		call	StrLen
+		test	eax, eax
+		jz		retnNull
+		sub		ebx, eax
 		js		retnNull
+		xor		eax, eax
+		xor		edx, edx
+		ALIGN 16
+	iterHead:
+		mov		dl, [eax+edi]
+		mov		cl, kLwrCaseConverter[edx]
+		test	cl, cl
+		jz		found
+		mov		dl, [eax+esi]
+		inc		eax
+		cmp		cl, kLwrCaseConverter[edx]
+		jz		iterHead
 		inc		esi
 		xor		eax, eax
+		dec		ebx
+		jns		iterHead
 		ALIGN 16
-	subHead:
-		mov		dl, [eax+esi]
-		mov		cl, kLwrCaseConverter[edx]
-		mov		dl, [eax+edi]
-		cmp		cl, kLwrCaseConverter[edx]
-		jnz		mainHead
-		inc		eax
-		cmp		eax, ebp
-		jb		subHead
-		mov		eax, esi
-		pop		edi
-		pop		esi
-		pop		ebx
-		pop		ebp
-		retn
 	retnNull:
 		xor		eax, eax
 		pop		edi
 		pop		esi
 		pop		ebx
-		pop		ebp
+		retn
+		ALIGN 16
+	found:
+		mov		eax, esi
+		pop		edi
+		pop		esi
+		pop		ebx
 		retn
 	}
 }
@@ -2345,24 +2341,21 @@ __declspec(naked) void __fastcall FileStream::MakeAllDirs(char *fullPath)
 	__asm
 	{
 		push	esi
-		push	edi
-		mov		esi, ecx
+		push	ecx
 		ALIGN 16
 	iterHead:
 		mov		dl, '\\'
 		call	FindChr
 		test	eax, eax
 		jz		done
-		mov		edi, eax
+		mov		esi, eax
 		mov		[eax], 0
-		push	0
-		push	esi
-		call	CreateDirectoryA
-		mov		[edi], '\\'
-		lea		ecx, [edi+1]
+		call	_mkdir
+		mov		[esi], '\\'
+		lea		ecx, [esi+1]
 		jmp		iterHead
 	done:
-		pop		edi
+		pop		ecx
 		pop		esi
 		retn
 	}

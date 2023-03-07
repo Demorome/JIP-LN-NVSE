@@ -55,7 +55,7 @@ void GetLoadedType(UInt32 formType, int index, tList<TESForm> *outList, TempElem
 			do
 			{
 				refr = refrIter->data;
-				if (!refr || !refr->extraDataList.HasType(kExtraData_MapMarker) || ((index != -1) && (index != refr->modIndex))) continue;
+				if (!refr || !refr->extraDataList.HasType(kXData_ExtraMapMarker) || ((index != -1) && (index != refr->modIndex))) continue;
 				if (outList) outList->Prepend(refr);
 				else tmpElements->Append(refr);
 			}
@@ -74,7 +74,7 @@ void GetLoadedType(UInt32 formType, int index, tList<TESForm> *outList, TempElem
 			do
 			{
 				refr = refrIter->data;
-				if (!refr || !refr->extraDataList.HasType(kExtraData_RadioData) || ((index != -1) && (index != refr->modIndex))) continue;
+				if (!refr || !refr->extraDataList.HasType(kXData_ExtraRadioData) || ((index != -1) && (index != refr->modIndex))) continue;
 				if (outList) outList->Prepend(refr);
 				else tmpElements->Append(refr);
 			}
@@ -171,9 +171,10 @@ bool Cmd_Search_Execute(COMMAND_ARGS)
 		}
 		else
 		{
+			UInt32 uType = *(UInt32*)typeStr & 0xDFDFDFDF;
 			for (UInt32 idx = 3; idx <= 120; idx++)
 			{
-				if (StrCompareCI(TypeSignature::Array()[idx].signature, typeStr))
+				if (uType != *(UInt32*)TypeSignature::Array()[idx].signature)
 					continue;
 				filter = 120 - idx;
 				break;

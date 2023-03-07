@@ -8,33 +8,31 @@ bool Cmd_sv_RegexMatch_Execute(COMMAND_ARGS)
 {
 	*result = 0;
 	UInt32 strID;
-	char *buffer = GetStrArgBuffer();
-	if (!ExtractFormatStringArgs(1, buffer, EXTRACT_ARGS_EX, kCommandInfo_sv_RegexMatch.numParams, &strID))
+	char rgxStr[0x80];
+	if (!ExtractFormatStringArgs(1, rgxStr, EXTRACT_ARGS_EX, kCommandInfo_sv_RegexMatch.numParams, &strID))
 		return true;
 	const char *srcStr = GetStringVar(strID);
-	if (srcStr) *result = std::regex_match(srcStr, std::regex(buffer));
+	if (srcStr) *result = std::regex_match(srcStr, std::regex(rgxStr));
 	return true;
 }
 
 bool Cmd_sv_RegexSearch_Execute(COMMAND_ARGS)
 {
-	*result = 0;
+	NVSEArrayVar *resArr = CreateArray(NULL, 0, scriptObj);
+	*result = (int)resArr;
 	UInt32 strID;
-	char *buffer = GetStrArgBuffer();
-	if (!ExtractFormatStringArgs(1, buffer, EXTRACT_ARGS_EX, kCommandInfo_sv_RegexSearch.numParams, &strID))
+	char rgxStr[0x80];
+	if (!ExtractFormatStringArgs(1, rgxStr, EXTRACT_ARGS_EX, kCommandInfo_sv_RegexSearch.numParams, &strID))
 		return true;
-	const char *srcStr = GetStringVar(strID);
-	if (!srcStr) return true;
-	TempElements *tmpElements = GetTempElements();
-	std::regex rgx(buffer);
+	const char *srcStr = GetStringVar(strID), *pEnd = srcStr + StrLen(srcStr);
+	if (srcStr == pEnd) return true;
+	std::regex rgx(rgxStr);
 	std::cmatch matches;
 	while (std::regex_search(srcStr, matches, rgx))
 	{
-		tmpElements->Append(matches.str().c_str());
-		srcStr = matches.suffix().str().c_str();
+		AppendElement(resArr, ArrayElementL(matches.str().c_str()));
+		srcStr = pEnd - matches.suffix().str().size();
 	}
-	if (!tmpElements->Empty())
-		*result = (int)CreateArray(tmpElements->Data(), tmpElements->Size(), scriptObj);
 	return true;
 }
 
