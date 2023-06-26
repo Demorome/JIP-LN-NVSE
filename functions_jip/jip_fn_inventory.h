@@ -27,6 +27,8 @@ DEFINE_COMMAND_PLUGIN(GetEquippedArmorRefs, 1, 0, nullptr);
 DEFINE_COMMAND_PLUGIN(GetArmorEffectiveDT, 1, 0, nullptr);
 DEFINE_COMMAND_PLUGIN(GetArmorEffectiveDR, 1, 0, nullptr);
 DEFINE_COMMAND_PLUGIN(GetHotkeyItemRef, 0, 1, kParams_OneInt);
+DEFINE_COMMAND_PLUGIN(IsItemUnique, 0, 1, kParams_OneObjectID);
+DEFINE_COMMAND_PLUGIN(GetSelfAsInventoryRef, 1, 0, nullptr);
 
 bool Cmd_AddItemAlt_Execute(COMMAND_ARGS)
 {
@@ -54,7 +56,11 @@ bool Cmd_SetValueAlt_Execute(COMMAND_ARGS)
 	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &form, &newVal))
 		return true;
 	TESValueForm *valForm = DYNAMIC_CAST(form, TESForm, TESValueForm);
-	if (valForm) valForm->value = newVal;
+	if (valForm)
+	{
+		valForm->value = newVal;
+		//form->MarkModified(2);
+	}
 	else if IS_ID(form, AlchemyItem)
 		((AlchemyItem*)form)->value = newVal;
 	return true;
@@ -99,9 +105,6 @@ bool Cmd_SetWeaponRefModFlags_Execute(COMMAND_ARGS)
 	ExtraDataList *xData = invRef->xData;
 	if (xData)
 	{
-		ContChangesEntry *entry = invRef->containerRef->GetContainerChangesEntry(invRef->type);
-		if (!entry || !entry->extendData) return true;
-
 		ExtraWeaponModFlags *xModFlags = GetExtraType(xData, ExtraWeaponModFlags);
 		if (xModFlags)
 		{
@@ -110,9 +113,11 @@ bool Cmd_SetWeaponRefModFlags_Execute(COMMAND_ARGS)
 			if (flags) xModFlags->flags = flags;
 			else
 			{
-				xData->RemoveExtra(xModFlags, true);
+				xData->RemoveByType(kXData_ExtraWeaponModFlags);
 				if (!xData->m_data)
 				{
+					ContChangesEntry *entry = invRef->containerRef->GetContainerChangesEntry(invRef->type);
+					if (!entry || !entry->extendData) return true;
 					entry->extendData->Remove(xData);
 					GameHeapFree(xData);
 				}
@@ -120,7 +125,8 @@ bool Cmd_SetWeaponRefModFlags_Execute(COMMAND_ARGS)
 		}
 		else if (flags)
 		{
-			xData = SplitFromStack(entry, xData);
+			if (invRef->GetCount() > 1)
+				xData = invRef->SplitFromStack();
 			xData->AddExtra(ExtraWeaponModFlags::Create(flags));
 		}
 	}
@@ -269,8 +275,10 @@ bool Cmd_DropAlt_Execute(COMMAND_ARGS)
 {
 	TESForm *form;
 	SInt32 dropCount = 0, clrOwner = 0;
-	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &form, &dropCount, &clrOwner) || !thisObj->baseForm->GetContainer())
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &form, &dropCount, &clrOwner))
 		return true;
+	TESContainer *container = thisObj->baseForm->GetContainer();
+	if (!container) return true;
 	ContChangesEntryList *entryList = thisObj->GetContainerChangesList();
 	if (!entryList) return true;
 	tList<TESForm> tempList(form);
@@ -287,7 +295,7 @@ bool Cmd_DropAlt_Execute(COMMAND_ARGS)
 		item = iter->data;
 		if (!item || !kInventoryType[item->typeID])
 			continue;
-		total = thisObj->GetItemCount(item);
+		total = GetFormCount(&container->formCountList, entryList, item);
 		if (total < 1) continue;
 		if ((dropCount > 0) && (dropCount < total))
 			total = dropCount;
@@ -623,12 +631,8 @@ bool Cmd_GetEquippedArmorRefs_Execute(COMMAND_ARGS)
 {
 	*result = 0;
 	if (IS_ACTOR(thisObj))
-	{
-		BipedAnim *equipment = ((Actor*)thisObj)->GetBipedAnim();
-		if (equipment)
-		{
-			ContChangesEntryList *entryList = thisObj->GetContainerChangesList();
-			if (entryList)
+		if (BipedAnim *equipment = ((Actor*)thisObj)->GetBipedAnim())
+			if (ContChangesEntryList *entryList = thisObj->GetContainerChangesList())
 			{
 				TempElements *tmpElements = GetTempElements();
 				BipedAnim::Data *slotData = equipment->slotData;
@@ -646,23 +650,18 @@ bool Cmd_GetEquippedArmorRefs_Execute(COMMAND_ARGS)
 				}
 				*result = (int)CreateArray(tmpElements->Data(), tmpElements->Size(), scriptObj);
 			}
-		}
-	}
 	return true;
 }
 
-float __fastcall GetArmorEffectiveDX(TESObjectREFR *thisObj, UInt32 funcAddr)
+double __fastcall GetArmorEffectiveDX(TESObjectREFR *thisObj, UInt32 funcAddr)
 {
-	if IS_TYPE(thisObj->baseForm, TESObjectARMO)
-	{
-		InventoryRef *invRef = InventoryRefGetForID(thisObj->refID);
-		if (invRef)
-			return ThisCall<float>(funcAddr, invRef->entry, 0);
-		ContChangesExtraList extendData(&thisObj->extraDataList);
-		ContChangesEntry tempEntry(&extendData, 1, thisObj->baseForm);
-		return ThisCall<float>(funcAddr, &tempEntry, 0);
-	}
-	return 0;
+	if NOT_TYPE(thisObj->baseForm, TESObjectARMO)
+		return 0;
+	if (InventoryRef *invRef = InventoryRefGetForID(thisObj->refID))
+		return ThisCall<double>(funcAddr, invRef->entry, 0);
+	ContChangesExtraList extendData(&thisObj->extraDataList);
+	ContChangesEntry tempEntry(&extendData, 1, thisObj->baseForm);
+	return ThisCall<double>(funcAddr, &tempEntry, 0);
 }
 
 bool Cmd_GetArmorEffectiveDT_Execute(COMMAND_ARGS)
@@ -691,5 +690,23 @@ bool Cmd_GetHotkeyItemRef_Execute(COMMAND_ARGS)
 			REFR_RES = invRef->refID;
 		}
 	}
+	return true;
+}
+
+bool Cmd_IsItemUnique_Execute(COMMAND_ARGS)
+{
+	TESForm *item;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &item) && (item->jipFormFlags6 & kHookFormFlag6_UniqueItem))
+		*result = 1;
+	else *result = 0;
+	return true;
+}
+
+bool Cmd_GetSelfAsInventoryRef_Execute(COMMAND_ARGS)
+{
+	REFR_RES = 0;
+	if (containingObj && thisObj->baseForm)
+		if (TESObjectREFR *invRef = containingObj->CreateInventoryRefForScriptedObj(thisObj->baseForm, eventList))
+			REFR_RES = invRef->refID;
 	return true;
 }

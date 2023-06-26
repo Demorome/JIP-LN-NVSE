@@ -63,6 +63,7 @@ DEFINE_COMMAND_PLUGIN(AttachUIComponent, 1, 22, kParams_OneString_OneFormatStrin
 DEFINE_COMMAND_PLUGIN(GetWorldMapPosMults, 1, 2, kParams_TwoScriptVars);
 DEFINE_COMMAND_PLUGIN(ProjectUITile, 1, 6, kParams_TwoStrings_FourFloats);
 DEFINE_COMMAND_PLUGIN(GetStringUIDimensions, 0, 6, kParams_OneString_OneInt_OneFloat_ThreeScriptVars);
+DEFINE_COMMAND_PLUGIN(GetMenuItemListRefs, 0, 2, kParams_TwoOptionalInts);
 
 bool Cmd_IsComponentLoaded_Execute(COMMAND_ARGS)
 {
@@ -144,7 +145,7 @@ bool Cmd_GetUIString_Execute(COMMAND_ARGS)
 	char tilePath[0x100];
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &tilePath))
 	{
-		Tile::Value *value = nullptr;
+		TileValue *value = nullptr;
 		if (GetTargetComponent(tilePath, &value) && value)
 			resStr = value->str;
 	}
@@ -188,7 +189,7 @@ SInt32 GetActiveTileID()
 	Tile *activeTile = g_interfaceManager->GetActiveTile();
 	if (activeTile)
 	{
-		Tile::Value *val = activeTile->GetValue(kTileValue_id);
+		TileValue *val = activeTile->GetValue(kTileValue_id);
 		if (val) return val->num;
 	}
 	return -1;
@@ -209,6 +210,8 @@ bool Cmd_GetMenuTargetRef_Execute(COMMAND_ARGS)
 	Menu *menu = tileMenu ? tileMenu->menu : nullptr;
 	if (!menu) return true;
 	TESForm *menuRef = nullptr;
+	TESObjectREFR *container = g_thePlayer;
+	ContChangesEntry *entry = nullptr;
 	switch (menuID)
 	{
 		case kMenuType_Container:
@@ -229,16 +232,21 @@ bool Cmd_GetMenuTargetRef_Execute(COMMAND_ARGS)
 			break;
 		case kMenuType_Quantity:
 		{
-			if (MENU_VISIBILITY[kMenuType_Inventory]) menuRef = CreateRefForStack(g_thePlayer, InventoryMenu::Selection());
+			if (MENU_VISIBILITY[kMenuType_Inventory])
+				entry = InventoryMenu::Selection();
 			else if (ContainerMenu::Get())
 			{
+				entry = ContainerMenu::Selection();
 				ContainerMenu *cntMenu = ContainerMenu::Get();
-				menuRef = CreateRefForStack((cntMenu->currentItems == &cntMenu->leftItems) ? g_thePlayer : cntMenu->containerRef, ContainerMenu::Selection());
+				if (cntMenu->currentItems == &cntMenu->rightItems)
+					container = cntMenu->containerRef;
 			}
 			else if (BarterMenu::Get())
 			{
+				entry = BarterMenu::Selection();
 				BarterMenu *brtMenu = BarterMenu::Get();
-				menuRef = CreateRefForStack((brtMenu->currentItems == &brtMenu->leftItems) ? g_thePlayer : brtMenu->merchantRef->GetMerchantContainer(), BarterMenu::Selection());
+				if (brtMenu->currentItems == &brtMenu->rightItems)
+					container = brtMenu->merchantRef->GetMerchantContainer();
 			}
 			break;
 		}
@@ -249,13 +257,13 @@ bool Cmd_GetMenuTargetRef_Execute(COMMAND_ARGS)
 			{
 				static UInt32 valueID = 0;
 				if (!valueID) valueID = TraitNameToID("_MarkerIndex");
-				Tile::Value *markerIdx = mapMenu->mapMarker->GetValue(valueID);
+				TileValue *markerIdx = mapMenu->mapMarker->GetValue(valueID);
 				if (markerIdx) menuRef = mapMenu->mapMarkerList.GetNthItem(markerIdx->num);
 			}
 			break;
 		}
 		case kMenuType_Repair:
-			menuRef = CreateRefForStack(g_thePlayer, RepairMenu::Target());
+			entry = RepairMenu::Target();
 			break;
 		case kMenuType_Barter:
 			menuRef = ((BarterMenu*)menu)->merchantRef;
@@ -273,7 +281,7 @@ bool Cmd_GetMenuTargetRef_Execute(COMMAND_ARGS)
 			menuRef = RepairServicesMenu::Target();
 			break;
 		case kMenuType_ItemMod:
-			menuRef = CreateRefForStack(g_thePlayer, ItemModMenu::Target());
+			entry = ItemModMenu::Target();
 			break;
 		case kMenuType_CompanionWheel:
 			menuRef = ((CompanionWheelMenu*)menu)->companionRef;
@@ -291,7 +299,10 @@ bool Cmd_GetMenuTargetRef_Execute(COMMAND_ARGS)
 				menuRef = traitMenu->perkListBox.GetSelected();
 		}
 	}
-	if (menuRef) REFR_RES = menuRef->refID;
+	if (container && entry)
+		menuRef = CreateRefForStack(container, entry);
+	if (menuRef)
+		REFR_RES = menuRef->refID;
 	return true;
 }
 
@@ -339,7 +350,7 @@ bool Cmd_ClickMenuButton_Execute(COMMAND_ARGS)
 		component = GetTargetComponent(tilePath);
 		if (!component) return true;
 		parentMenu = component->GetParentMenu();
-		Tile::Value *tileVal = component->GetValue(kTileValue_id);
+		TileValue *tileVal = component->GetValue(kTileValue_id);
 		if (tileVal) tileID = tileVal->num;
 	}
 	if (parentMenu)
@@ -355,13 +366,15 @@ bool Cmd_GetSelectedItemRef_Execute(COMMAND_ARGS)
 {
 	REFR_RES = 0;
 	TESForm *itemRef = nullptr;
+	TESObjectREFR *container = g_thePlayer;
+	ContChangesEntry *entry = nullptr;
 	switch (g_interfaceManager->GetTopVisibleMenuID())
 	{
 		case kMenuType_Inventory:
 		{
 			InventoryMenu *invMenu = InventoryMenu::Get();
 			if (invMenu->itemList.selected)
-				itemRef = CreateRefForStack(g_thePlayer, InventoryMenu::Selection());
+				entry = InventoryMenu::Selection();
 			break;
 		}
 		case kMenuType_Stats:
@@ -375,17 +388,21 @@ bool Cmd_GetSelectedItemRef_Execute(COMMAND_ARGS)
 		{
 			ContainerMenu *cntMenu = ContainerMenu::Get();
 			if (cntMenu->leftItems.selected || cntMenu->rightItems.selected)
-				itemRef = CreateRefForStack(cntMenu->leftItems.selected ? g_thePlayer : cntMenu->containerRef, ContainerMenu::Selection());
+			{
+				entry = ContainerMenu::Selection();
+				if (cntMenu->rightItems.selected)
+					container = cntMenu->containerRef;
+			}
 			break;
 		}
 		case kMenuType_Map:
 		{
 			MapMenu *mapMenu = MapMenu::Get();
-			if (mapMenu->questList.selected)
+			if (mapMenu->questList.selected && mapMenu->questList.IsEnabled())
 				itemRef = mapMenu->questList.GetSelected();
-			else if (mapMenu->noteList.selected)
+			else if (mapMenu->noteList.selected && mapMenu->noteList.IsEnabled())
 				itemRef = mapMenu->noteList.GetSelected();
-			else if (mapMenu->challengeList.selected)
+			else if (mapMenu->challengeList.selected && mapMenu->challengeList.IsEnabled())
 				itemRef = mapMenu->challengeList.GetSelected();
 			break;
 		}
@@ -393,31 +410,38 @@ bool Cmd_GetSelectedItemRef_Execute(COMMAND_ARGS)
 		{
 			RepairMenu *rprMenu = RepairMenu::Get();
 			if (rprMenu->repairItems.selected)
-				itemRef = CreateRefForStack(g_thePlayer, rprMenu->repairItems.GetSelected());
+				entry = rprMenu->repairItems.GetSelected();
 			break;
 		}
 		case kMenuType_Barter:
 		{
 			BarterMenu *brtMenu = BarterMenu::Get();
 			if (brtMenu->leftItems.selected || brtMenu->rightItems.selected)
-				itemRef = CreateRefForStack(brtMenu->leftItems.selected ? g_thePlayer : brtMenu->merchantRef->GetMerchantContainer(), BarterMenu::Selection());
+			{
+				entry = BarterMenu::Selection();
+				if (brtMenu->rightItems.selected)
+					container = brtMenu->merchantRef->GetMerchantContainer();
+			}
 			break;
 		}
 		case kMenuType_RepairServices:
 		{
 			RepairServicesMenu *rpsMenu = RepairServicesMenu::Get();
 			if (rpsMenu->itemList.selected)
-				itemRef = CreateRefForStack(g_thePlayer, rpsMenu->itemList.GetSelected());
+				entry = rpsMenu->itemList.GetSelected();
 			break;
 		}
 		case kMenuType_ItemMod:
 		{
 			ItemModMenu *modMenu = ItemModMenu::Get();
 			if (modMenu->itemModList.selected)
-				itemRef = CreateRefForStack(g_thePlayer, modMenu->itemModList.GetSelected());
+				entry = modMenu->itemModList.GetSelected();
 		}
 	}
-	if (itemRef) REFR_RES = itemRef->refID;
+	if (container && entry)
+		itemRef = CreateRefForStack(container, entry);
+	if (itemRef)
+		REFR_RES = itemRef->refID;
 	return true;
 }
 
@@ -427,13 +451,13 @@ bool Cmd_GetBarterItems_Execute(COMMAND_ARGS)
 	UInt32 sold;
 	BarterMenu *brtMenu = BarterMenu::Get();
 	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &sold) || !brtMenu || !brtMenu->merchantRef) return true;
-	TESObjectREFR *target = sold ? brtMenu->merchantRef->GetMerchantContainer() : g_thePlayer, *itemRef;
+	TESObjectREFR *target = sold ? brtMenu->merchantRef->GetMerchantContainer() : g_thePlayer;
 	TempElements *tmpElements = GetTempElements();
 	auto iter = sold ? brtMenu->rightBarter.Head() : brtMenu->leftBarter.Head();
 	do
 	{
-		if (itemRef = CreateRefForStack(target, iter->data))
-			tmpElements->Append(itemRef);
+		if (iter->data)
+			tmpElements->Append(CreateRefForStack(target, iter->data));
 	}
 	while (iter = iter->next);
 	if (!tmpElements->Empty())
@@ -567,30 +591,30 @@ __declspec(naked) TextEditMenu* __stdcall ShowTextEditMenu(float width, float he
 		mov		ecx, [esi+0xCC]
 		test	ecx, ecx
 		jz		resetActive
-		push	1
+		push	0
 		push	0
 		push	kTileValue_mouseover
 		CALL_EAX(ADDR_TileSetFloat)
 	resetActive:
-		mov		dword ptr [esi+0xCC], 0
-		mov		dword ptr [esi+0xD0], 0
+		and		dword ptr [esi+0xCC], 0
+		and		dword ptr [esi+0xD0], 0
 	isActive:
 		mov		ds:0x11DAEC4, edi
 		CALL_EAX(0xA1DFB0)
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_depth
 		mov		ecx, [edi+4]
 		CALL_EAX(ADDR_TileSetFloat)
 		mov		eax, [esp+0xC]
-		push	1
+		push	0
 		push	eax
 		push	kTileValue_user0
 		mov		ecx, [edi+4]
 		CALL_EAX(ADDR_TileSetFloat)
 		mov		eax, [esp+0x10]
-		push	1
+		push	0
 		push	eax
 		push	kTileValue_user1
 		mov		ecx, [edi+4]
@@ -599,13 +623,13 @@ __declspec(naked) TextEditMenu* __stdcall ShowTextEditMenu(float width, float he
 		mov		[esi+0x50], 0
 		cmp		[esi], 0
 		jnz		hasTitle
-		push	1
+		push	0
 		push	0
 		push	kTileValue_visible
 		mov		ecx, [edi+0x30]
 		CALL_EAX(ADDR_TileSetFloat)
 	hasTitle:
-		push	1
+		push	0
 		push	esi
 		push	kTileValue_string
 		mov		ecx, [edi+0x30]
@@ -617,12 +641,12 @@ __declspec(naked) TextEditMenu* __stdcall ShowTextEditMenu(float width, float he
 		mov		ecx, [edi+0x4C]
 		mov		esi, offset s_fontHeightDatas
 		lea		esi, [esi+ecx*8]
-		push	1
+		push	0
 		push	dword ptr [esi]
 		push	kTileValue_user0
 		mov		ecx, [edi+0x28]
 		CALL_EAX(ADDR_TileSetFloat)
-		push	1
+		push	0
 		push	dword ptr [esi+4]
 		push	kTileValue_user1
 		mov		ecx, [edi+0x28]
@@ -636,12 +660,12 @@ __declspec(naked) TextEditMenu* __stdcall ShowTextEditMenu(float width, float he
 		mov		ecx, [edi+0x3C]
 		mov		word ptr [ecx], '|'
 		inc		word ptr [edi+0x40]
-		push	1
+		push	0
 		push	dword ptr ds:0x11D38BC
 		push	kTileValue_string
 		mov		ecx, [edi+0x2C]
 		CALL_EAX(ADDR_TileSetString)
-		mov		dword ptr [edi+0x44], 0
+		and		dword ptr [edi+0x44], 0
 		mov		dword ptr [edi+0x48], 0x7FFF0001
 		mov		eax, [edi+0x28]
 		mov		eax, [eax+0x28]
@@ -1037,8 +1061,8 @@ __declspec(naked) void QuantityMenuCallback(int count)
 		mov		ecx, s_quantityMenuScript
 		test	ecx, ecx
 		jz		done
-		mov		s_quantityMenuScript, 0
 		xor		eax, eax
+		mov		s_quantityMenuScript, eax
 		cmp		dword ptr [ebp+8], 5
 		setz	al
 		neg		eax
@@ -1134,7 +1158,7 @@ bool Cmd_MessageBoxExAlt_Execute(COMMAND_ARGS)
 			CaptureLambdaVars(callback);
 		else callback = nullptr;
 		s_messageBoxScripts.Append(callback);
-
+		
 		char *msgStrings[0x102], **buttonPtr = msgStrings + 2, *delim = buffer;
 		*buttonPtr = nullptr;
 		for (UInt32 count = 0xFF; count; count--)
@@ -1181,7 +1205,7 @@ bool Cmd_GetVATSTargets_Execute(COMMAND_ARGS)
 
 bool InCharGen()
 {
-	return g_tileMenuArray[kMenuType_CharGen - kMenuType_Min] || g_tileMenuArray[kMenuType_SpecialBook - kMenuType_Min] ||
+	return g_tileMenuArray[kMenuType_CharGen - kMenuType_Min] || g_tileMenuArray[kMenuType_SpecialBook - kMenuType_Min] || 
 		g_tileMenuArray[kMenuType_LoveTester - kMenuType_Min] || g_tileMenuArray[kMenuType_Trait - kMenuType_Min];
 }
 
@@ -1676,7 +1700,7 @@ bool Cmd_SetUIFloatGradual_Execute(COMMAND_ARGS)
 	UInt8 numArgs = NUM_ARGS;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &tilePath, &startVal, &endVal, &timer, &changeMode))
 	{
-		Tile::Value *tileVal = nullptr;
+		TileValue *tileVal = nullptr;
 		Tile *component = GetTargetComponent(tilePath, &tileVal);
 		if (component)
 		{
@@ -1688,11 +1712,11 @@ bool Cmd_SetUIFloatGradual_Execute(COMMAND_ARGS)
 					UInt8 changeModeMatch[] = {0, 4, 1, 5, 6};
 					changeMode = changeModeMatch[changeMode];
 				}
-				component->GradualSetFloat(tileVal->id, startVal, endVal, timer, changeMode);
+				component->StartGradualSetFloat(tileVal->id, startVal, endVal, timer, changeMode);
 			}
 			else
 			{
-				ThisCall(0xA07DC0, component, tileVal->id);
+				component->EndGradualSetFloat(tileVal->id);
 				if (numArgs >= 2)
 					tileVal->SetFloat(startVal);
 			}
@@ -1843,7 +1867,7 @@ bool Cmd_GetWorldMapPosMults_Execute(COMMAND_ARGS)
 
 __declspec(naked) void __stdcall GenerateRenderedUITexture(NiNode *tileNode, const NiVector4 &scrArea, NiTexture **pTexture)
 {
-	static BSCullingProcess *s_cullingProcess = nullptr;
+	static BSCullingProcess *s_cullingProcessUI = nullptr;
 	__asm
 	{
 		push	ebp
@@ -1869,7 +1893,7 @@ __declspec(naked) void __stdcall GenerateRenderedUITexture(NiNode *tileNode, con
 		test	eax, eax
 		jz		done
 		push	eax
-		mov		eax, s_cullingProcess
+		mov		eax, s_cullingProcessUI
 		test	eax, eax
 		jnz		hasCulling
 		push	0x350
@@ -1888,7 +1912,7 @@ __declspec(naked) void __stdcall GenerateRenderedUITexture(NiNode *tileNode, con
 		CALL_EAX(0x4A0EB0)
 		pop		dword ptr [eax+0xC4]
 		mov		dword ptr [eax+0x90], 1
-		mov		s_cullingProcess, eax
+		mov		s_cullingProcessUI, eax
 	hasCulling:
 		push	eax
 		push	dword ptr [eax+0xC4]
@@ -1897,12 +1921,12 @@ __declspec(naked) void __stdcall GenerateRenderedUITexture(NiNode *tileNode, con
 		push	dword ptr [ecx+0xAC]
 		mov		ecx, [ebp-4]
 		push	dword ptr [ecx+0x5E0]
-		mov		dword ptr [ecx+0x5E0], 0
+		and		dword ptr [ecx+0x5E0], 0
 		cmp		dword ptr [ecx+0x200], 0
 		jnz		scnActive
 		mov		ecx, [ebp-8]
 		push	dword ptr [ecx+8]
-		push	1
+		push	1			//	NiRenderer::kClrFlag_BackBuffer
 		CALL_EAX(0xB6B8D0)
 		add		esp, 8
 	scnActive:
@@ -1947,14 +1971,10 @@ __declspec(naked) void __stdcall GenerateRenderedUITexture(NiNode *tileNode, con
 		movups	xmm0, [ebp-0x28]
 		movups	[ecx+0xDC], xmm0
 		mov		ecx, [ebp-8]
-		mov		eax, [ecx+0x30]
-		test	eax, eax
-		jz		doRelease
-		push	eax
+		push	dword ptr [ecx+0x30]
 		push	dword ptr [ebp+0x10]
 		call	NiReleaseAddRef
 		mov		ecx, [ebp-8]
-	doRelease:
 		call	NiReleaseObject
 	done:
 		leave
@@ -2001,6 +2021,70 @@ bool Cmd_GetStringUIDimensions_Execute(COMMAND_ARGS)
 		NiVector3 resDims;
 		g_fontManager->GetStringDimensions(&resDims, buffer, fontID, wrapWidth);
 		outDims.Set(resDims.PS());
+	}
+	return true;
+}
+
+bool Cmd_GetMenuItemListRefs_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	UInt32 inclFiltered = 0, rightSide = 0;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &inclFiltered, &rightSide))
+	{
+		MenuItemEntryList *entryList;
+		TESObjectREFR *container = g_thePlayer;
+		switch (g_interfaceManager->GetTopVisibleMenuID())
+		{
+			case kMenuType_Inventory:
+				entryList = &InventoryMenu::Get()->itemList;
+				break;
+			case kMenuType_Container:
+			{
+				ContainerMenu *cntMenu = ContainerMenu::Get();
+				if (rightSide)
+				{
+					entryList = &cntMenu->rightItems;
+					container = cntMenu->containerRef;
+				}
+				else entryList = &cntMenu->leftItems;
+				break;
+			}
+			case kMenuType_Repair:
+				entryList = &RepairMenu::Get()->repairItems;
+				break;
+			case kMenuType_Barter:
+			{
+				BarterMenu *brtMenu = BarterMenu::Get();
+				if (rightSide)
+				{
+					entryList = &brtMenu->rightItems;
+					container = brtMenu->merchantRef->GetMerchantContainer();
+				}
+				else entryList = &brtMenu->leftItems;
+				break;
+			}
+			case kMenuType_RepairServices:
+				entryList = &RepairServicesMenu::Get()->itemList;
+				break;
+			default:
+				return true;
+		}
+		if (!container)
+			return true;
+		NVSEArrayVar *resArray = CreateMap(nullptr, nullptr, 0, scriptObj);
+		int tileIndex = 0;
+		auto listIter = entryList->list.Head();
+		do
+		{
+			auto listItem = listIter->data;
+			if (!listItem || !listItem->item)
+				continue;
+			if (inclFiltered || !listItem->isFiltered)
+				SetElement(resArray, ArrayElementL(tileIndex), ArrayElementL(CreateRefForStack(container, listItem->item)));
+			tileIndex++;
+		}
+		while (listIter = listIter->next);
+		*result = (int)resArray;
 	}
 	return true;
 }

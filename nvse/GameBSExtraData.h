@@ -6,11 +6,8 @@
 class BSExtraData
 {
 public:
-	BSExtraData();
-	~BSExtraData();
-
-	virtual void	Destroy(bool doFree);
-	virtual bool	IsDifferentType(BSExtraData *compareTo);
+	virtual void	Destroy(bool doFree) = 0;
+	virtual bool	Differs(BSExtraData *compareTo) = 0;
 
 	UInt8			type;		// 04
 	UInt8			pad05[3];	// 05
@@ -30,10 +27,11 @@ struct BaseExtraList
 	NPCPerksInfo	*perksInfo;					// 1C	JIP only!
 
 	bool HasType(UInt32 type) const;
+	void __fastcall SetTypePresent(UInt32 type, bool present);
 	BSExtraData *GetByType(UInt32 xType) const;
 	__forceinline BSExtraData *AddExtra(BSExtraData *toAdd)
 	{
-		return ThisCall<BSExtraData*>(0x40FF60, this, toAdd);
+		return ThisCall<BSExtraData*>(ADDR_AddExtraData, this, toAdd);
 	}
 	__forceinline void RemoveExtra(BSExtraData *toRemove, bool doFree)
 	{
@@ -41,7 +39,7 @@ struct BaseExtraList
 	}
 	__forceinline void RemoveByType(UInt8 xType)
 	{
-		ThisCall(0x410140, this, xType);
+		ThisCall(ADDR_RemoveExtraType, this, xType);
 	}
 	__forceinline void RemoveAll(bool doFree)
 	{
@@ -52,13 +50,19 @@ struct BaseExtraList
 		ThisCall(0x412490, this, sourceList, bCopyAndRemove);
 	}
 	void DebugDump() const;
-	char GetExtraFactionRank(TESFaction *faction) const;
+	char __fastcall GetExtraFactionRank(TESFaction *faction) const;
 	SInt32 GetCount() const;
 };
+
+class ExtraCount;
+class ExtraJIP;
 
 struct ExtraDataList : public BaseExtraList
 {
 	ExtraDataList *CreateCopy(bool bCopyAndRemove = false);
 	static ExtraDataList *Create();
+
+	ExtraCount *AddExtraCount(SInt32 count);
+	ExtraJIP *AddExtraJIP(UINT _key = 0);
 };
-static_assert(sizeof(ExtraDataList) == 0x020);
+static_assert(sizeof(ExtraDataList) == 0x20);

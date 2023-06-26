@@ -164,7 +164,7 @@ __declspec(naked) void HookInfo::Init(UInt32 _patchAddr, void *hookPtr, UInt8 ty
 	{
 		push	esi
 		mov		esi, ecx
-		mov		dword ptr [esi+0x1C], 0
+		and		dword ptr [esi+0x1C], 0
 		mov		edx, [esp+0x14]
 		mov		eax, 5
 		mov		ecx, 0xA
@@ -267,7 +267,7 @@ __declspec(naked) bool __fastcall HookInfo::Set(bool install)
 		call	PrimitiveCS::Enter
 		pop		ecx
 		call	HookInfo::DoSet
-		mov		s_hookInfoCS.selfPtr, 0
+		and		s_hookInfoCS.selfPtr, 0
 		retn
 	}
 }
@@ -287,7 +287,7 @@ __declspec(naked) void __fastcall HookInfo::ModUsers(bool add)
 		jle		doSet
 		inc		dword ptr [ecx+0x1C]
 		pop		edx
-		mov		s_hookInfoCS.selfPtr, 0
+		and		s_hookInfoCS.selfPtr, 0
 		retn
 	doDecr:
 		cmp		dword ptr [ecx+0x1C], 1
@@ -296,11 +296,11 @@ __declspec(naked) void __fastcall HookInfo::ModUsers(bool add)
 		dec		dword ptr [ecx+0x1C]
 	done:
 		pop		edx
-		mov		s_hookInfoCS.selfPtr, 0
+		and		s_hookInfoCS.selfPtr, 0
 		retn
 	doSet:
 		call	HookInfo::DoSet
-		mov		s_hookInfoCS.selfPtr, 0
+		and		s_hookInfoCS.selfPtr, 0
 		retn
 	}
 }
@@ -682,7 +682,7 @@ __declspec(naked) void __fastcall TextInputRefreshHook(TextEditMenu *menu)
 		mov		edx, [ecx+0x3C]
 		add		edx, [ecx+0x44]
 		mov		[edx], al
-		push	1
+		push	0
 		push	dword ptr [ecx+0x3C]
 		push	kTileValue_string
 		mov		ecx, [ecx+0x28]
@@ -693,7 +693,7 @@ __declspec(naked) void __fastcall TextInputRefreshHook(TextEditMenu *menu)
 		xor		edx, edx
 		cmp		ax, [esi+0x48]
 		cmovb	ecx, edx
-		push	1
+		push	0
 		push	ecx
 		push	kTileValue_target
 		mov		ecx, [esi+0x2C]
@@ -701,7 +701,7 @@ __declspec(naked) void __fastcall TextInputRefreshHook(TextEditMenu *menu)
 		push	kTileValue_user1
 		mov		ecx, [esi+0x4C]
 		CALL_EAX(ADDR_TileGetFloat)
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_user2
@@ -860,7 +860,7 @@ __declspec(naked) bool __stdcall TextInputKeyPressHook(UInt32 inputKey)
 		push	eax
 		lea		ecx, [esi+0x3C]
 		call	String::InsertChar
-		push	1
+		push	0
 		push	dword ptr [esi+0x3C]
 		push	kTileValue_string
 		mov		ecx, [esi+0x28]
@@ -1384,7 +1384,7 @@ __declspec(naked) void WeaponSwitchSelectHook()
 {
 	__asm
 	{
-		mov		dword ptr [ebp-0xB0], 0
+		and		dword ptr [ebp-0xB0], 0
 		mov		ecx, [ebp-0x28]
 		test	byte ptr [ecx+0x105], kHookActorFlag1_LockedEquipment
 		jz		done
@@ -1415,7 +1415,7 @@ __declspec(naked) void WeaponSwitchSelectHook()
 		dec		ecx
 		jnz		loopHead
 	done:
-		mov		dword ptr [ebp-0xBC], 0
+		and		dword ptr [ebp-0xBC], 0
 		retn
 	found:
 		lea     eax, [ebp-0x68]
@@ -1453,7 +1453,7 @@ __declspec(naked) void GetPreferedWeaponHook()
 	__asm
 	{
 		mov		[ebp-0x10], ecx
-		mov		dword ptr [ebp-8], 0
+		and		dword ptr [ebp-8], 0
 		cmp		byte ptr [ebp+7], 0
 		jnz		contRetn
 		test	byte ptr [ecx+0x105], kHookActorFlag1_LockedEquipment
@@ -1477,8 +1477,8 @@ __declspec(naked) void ShowMessageHook()
 		JMP_EDX(0x5B4930)
 	contRetn:
 		lea		ecx, [ebp-0x14]
-		mov		dword ptr [ecx], 0
-		mov		dword ptr [ecx+4], 0
+		and		dword ptr [ecx], 0
+		and		dword ptr [ecx+4], 0
 		JMP_EDX(0x5B46B2)
 	}
 }
@@ -1599,7 +1599,7 @@ __declspec(naked) void MenuHandleMouseoverHook()
 	skipEvt:
 		cmp		byte ptr [eax+0xED], 0
 		jz		done
-		mov		dword ptr [eax+0xBC], 0
+		and		dword ptr [eax+0xBC], 0
 	done:
 		retn
 	}
@@ -1929,8 +1929,8 @@ __declspec(naked) void SetRolloverTextHook()
 		cmp		s_activationDisabledTypes[eax], 0
 		jz		done
 	nullRef:
-		mov		dword ptr [ebp+8], 0
 		xor		edx, edx
+		mov		[ebp+8], edx
 	done:
 		mov		[ebp-0x84], edx
 		JMP_EAX(0x775BA1)
@@ -2353,7 +2353,7 @@ __declspec(naked) void EvalEventBlockHook()
 		movups	[edx+0x30], xmm0
 		movups	xmm0, [ecx+0x34]
 		movups	[edx+0x40], xmm0
-		mov		s_scriptWaitInfo, 0
+		and		s_scriptWaitInfo, 0
 		mov		eax, [ecx]
 		and		byte ptr [eax+5], ~kHookFormFlag5_ScriptOnWait
 		retn
@@ -3430,7 +3430,7 @@ __declspec(naked) NiNode* __fastcall DoAttachModel(NiAVObject *targetObj, const 
 		call	dword ptr [eax+0xDC]
 		mov		ecx, [ebp-0xC]
 		CALL_EAX(0xA5A040)
-		push	offset kUpdateParams
+		push	offset kNiUpdateData
 		mov		ecx, [ebp-4]
 		mov		eax, [ecx]
 		call	dword ptr [eax+0xC0]
@@ -3644,7 +3644,7 @@ __declspec(naked) void __fastcall DoQueuedReferenceHook(QueuedReference *queuedR
 		lea		edx, [ecx+0xA4]
 		lock dec dword ptr [edx]
 		jns		doneSmph1
-		mov		dword ptr [edx], 0
+		and		dword ptr [edx], 0
 	doneSmph1:
 		mov		eax, [edi]
 		cmp		dword ptr [eax+0x100], ADDR_ReturnTrue
@@ -3652,7 +3652,7 @@ __declspec(naked) void __fastcall DoQueuedReferenceHook(QueuedReference *queuedR
 		sub		edx, 4
 		lock dec dword ptr [edx]
 		jns		doneSmph2
-		mov		dword ptr [edx], 0
+		and		dword ptr [edx], 0
 	doneSmph2:
 		mov		eax, [edi+0x64]
 		test	eax, eax
@@ -3710,7 +3710,7 @@ __declspec(naked) void __fastcall DoQueuedReferenceHook(QueuedReference *queuedR
 		add		ecx, 0x80
 		dec		dword ptr [ecx+4]
 		jnz		popTLS
-		mov		dword ptr [ecx], 0
+		and		dword ptr [ecx], 0
 	popTLS:
 		mov		eax, fs:[0x2C]
 		mov		ecx, ds:0x126FD98
@@ -3794,6 +3794,29 @@ __declspec(naked) void LoadWeaponSlotHook()
 		call	AddPointLights
 	done:
 		retn
+	}
+}
+
+__declspec(naked) void __fastcall InitRagdollControllerHook(Actor *actor, int EDX, NiNode *rootNode, bool arg2, bool arg3, bool arg4)
+{
+	static NiNode *pc3rdPNode = nullptr;
+	__asm
+	{
+		cmp		dword ptr [ecx+0xC], 0x14
+		jz		isPlayer
+	doInit:
+		JMP_EAX(0x87E130)
+	isPlayer:
+		mov		eax, [esp+4]
+		cmp		pc3rdPNode, eax
+		mov		pc3rdPNode, eax
+		jnz		doInit
+		cmp		dword ptr [ecx+0xAC], 0
+		jz		doInit
+		mov		eax, [ebp]
+		cmp		byte ptr [eax+7], 0		// Lazy workaround for a conflict w/ Tweaks' 'bFixEnhancedCameraGroundSinkBug'.
+		ja		doInit
+		retn	0x10
 	}
 }
 
@@ -3998,7 +4021,7 @@ __declspec(naked) void __fastcall UpdateAnimatedLightsHook(TES *pTES)
 {
 	__asm
 	{
-		mov		dword ptr ds:0x11C56E8, 0
+		and		dword ptr ds:0x11C56E8, 0
 		mov		edx, [ecx+0x34]
 		mov		ecx, [ecx+8]
 		test	edx, edx
@@ -4020,7 +4043,7 @@ __declspec(naked) void __fastcall UpdateAnimatedLightsHook(TES *pTES)
 		mov		eax, [eax]
 		lea		esi, [eax+ecx*4]
 		mov		edi, ecx
-		mov		ecx, 0x11F9EA0
+		mov		ecx, SCENE_LIGHTS_CS
 		call	LightCS::Enter
 		ALIGN 16
 	iterHead:
@@ -4087,10 +4110,10 @@ __declspec(naked) void __fastcall UpdateAnimatedLightsHook(TES *pTES)
 		jmp		iterHead
 		ALIGN 16
 	iterEnd:
-		mov		ecx, 0x11F9EA0
+		mov		ecx, SCENE_LIGHTS_CS
 		dec		dword ptr [ecx+4]
 		jnz		inUse
-		mov		dword ptr [ecx], 0
+		and		dword ptr [ecx], 0
 	inUse:
 		pop		edi
 		pop		esi
@@ -4313,10 +4336,14 @@ __declspec(naked) bool __fastcall DestroyRefrHook(TESObjectREFR *refr)
 	doneModel:
 		cmp		byte ptr [esi+0xF], 0xFF
 		jnz		doneVars
-		mov		eax, g_dataHandler
+		push	dword ptr [esi+0xC]
+		call	HasChangeData
+		test	eax, eax
+		jnz		doneVars
+		/*mov		eax, g_dataHandler
 		mov		eax, [eax+0x208]
 		cmp		[esi+0xC], eax
-		jnz		doneVars
+		jnz		doneVars*/
 		mov		eax, s_auxVariablesPerm+8
 		or		eax, s_auxVariablesTemp+8
 		jz		doneVars
@@ -4330,7 +4357,7 @@ __declspec(naked) bool __fastcall DestroyRefrHook(TESObjectREFR *refr)
 		or		s_dataChangedFlags, al
 		mov		ecx, offset s_auxVariablesTemp
 		call	ClearRefAuxVars
-		mov		s_auxVarCS.selfPtr, 0
+		and		s_auxVarCS.selfPtr, 0
 	doneVars:
 		mov		eax, [esi+0x20]
 		cmp		byte ptr [eax+4], kFormType_TESFurniture
@@ -4441,7 +4468,7 @@ __declspec(naked) void ProcessHUDMainUI()
 		CALL_EAX(ADDR_TileGetFloat)
 		fsubr	dword ptr [ebp-0x14]
 		fsubr	dword ptr [ebp-8]
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_dragx
@@ -4455,7 +4482,7 @@ __declspec(naked) void ProcessHUDMainUI()
 		CALL_EAX(ADDR_TileGetFloat)
 		fsubr	dword ptr [ebp-0x14]
 		fsubr	dword ptr [ebp-0xC]
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_dragy
@@ -4467,12 +4494,12 @@ __declspec(naked) void ProcessHUDMainUI()
 		mov		[ebx+0x4C], edx
 		mov		[ebx+0xD4], edx
 		mov		[ebx+0xD8], edx
-		push	1
+		push	0
 		push	0xBF800000
 		push	kTileValue_dragstartx
 		mov		ecx, esi
 		CALL_EAX(ADDR_TileSetFloat)
-		push	1
+		push	0
 		push	0xBF800000
 		push	kTileValue_dragstarty
 		mov		ecx, esi
@@ -4500,12 +4527,12 @@ __declspec(naked) void ProcessHUDMainUI()
 		push	kTileValue_clicksound
 		mov		ecx, esi
 		CALL_EAX(0xA0B110)
-		push	1
+		push	0
 		push	0x3F800000
 		push	kTileValue_clicked
 		mov		ecx, esi
 		CALL_EAX(ADDR_TileSetFloat)
-		push	1
+		push	0
 		push	0
 		push	kTileValue_clicked
 		mov		ecx, esi
@@ -4556,7 +4583,7 @@ __declspec(naked) void ProcessHUDMainUI()
 		CALL_EAX(ADDR_TileGetFloat)
 		fsubr	dword ptr [ebp-0x10]
 		fsubr	dword ptr [ebp-8]
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_dragx
@@ -4567,21 +4594,21 @@ __declspec(naked) void ProcessHUDMainUI()
 		CALL_EAX(ADDR_TileGetFloat)
 		fsubr	dword ptr [ebp-0x14]
 		fsubr	dword ptr [ebp-0xC]
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_dragy
 		mov		ecx, esi
 		CALL_EAX(ADDR_TileSetFloat)
 		fild	dword ptr [ebx+0x50]
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_dragstartx
 		mov		ecx, esi
 		CALL_EAX(ADDR_TileSetFloat)
 		fild	dword ptr [ebx+0x5C]
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_dragstarty
@@ -4589,7 +4616,7 @@ __declspec(naked) void ProcessHUDMainUI()
 		CALL_EAX(ADDR_TileSetFloat)
 		fld		dword ptr [ebp-8]
 		fsub	dword ptr [ebp-0x10]
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_dragoffsetx
@@ -4597,7 +4624,7 @@ __declspec(naked) void ProcessHUDMainUI()
 		CALL_EAX(ADDR_TileSetFloat)
 		fld		dword ptr [ebp-0xC]
 		fsub	dword ptr [ebp-0x14]
-		push	1
+		push	0
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_dragoffsety
@@ -4633,14 +4660,14 @@ __declspec(naked) void ProcessHUDMainUI()
 		jmp		done
 		ALIGN 16
 	iterEnd:
-		push	1
+		push	0
 		fild	dword ptr [ebp-8]
 		push	ecx
 		fstp	dword ptr [esp]
 		push	kTileValue_wheelmoved
 		mov		ecx, esi
 		CALL_EAX(ADDR_TileSetFloat)
-		push	1
+		push	0
 		push	0
 		push	kTileValue_wheelmoved
 		mov		ecx, esi
@@ -4649,7 +4676,7 @@ __declspec(naked) void ProcessHUDMainUI()
 	handleMouseover:
 		test	edi, edi
 		jz		noLast
-		push	1
+		push	0
 		push	0
 		push	kTileValue_mouseover
 		mov		ecx, edi
@@ -4661,7 +4688,7 @@ __declspec(naked) void ProcessHUDMainUI()
 		push	kTileValue_mouseoversound
 		mov		ecx, esi
 		CALL_EAX(0xA0B110)
-		push	1
+		push	0
 		push	0x3F800000
 		push	kTileValue_mouseover
 		mov		ecx, esi
@@ -4902,8 +4929,8 @@ __declspec(naked) void __fastcall ClearHUDOrphanedTiles(HUDMainMenu *hudMain)
 {
 	__asm
 	{
-		push	esi
 		push	ecx
+		push	esi
 		mov		eax, [ecx+4]
 		mov		esi, [eax+4]
 		ALIGN 16
@@ -4923,12 +4950,10 @@ __declspec(naked) void __fastcall ClearHUDOrphanedTiles(HUDMainMenu *hudMain)
 		mov		eax, [ecx]
 		call	dword ptr [eax]
 		jmp		iterHead
-		ALIGN 16
 	done:
-		pop		ecx
-		CALL_EAX(0x77DA60)
 		pop		esi
-		retn
+		pop		ecx
+		JMP_EAX(0x77DA60)
 	}
 }
 
@@ -5068,6 +5093,7 @@ __declspec(noinline) void InitJIPHooks()
 	SafeWrite32(0x1016D70, (UInt32)DoQueuedReferenceHook);
 	WritePushRetRelJump(0x4ACCF1, 0x4ACD8C, (UInt32)LoadBip01SlotHook);
 	WritePushRetRelJump(0x4AF0DE, 0x4AF0F8, (UInt32)LoadWeaponSlotHook);
+	WriteRelCall(0x931384, (UInt32)InitRagdollControllerHook);
 	//SAFE_WRITE_BUF(0x50DCE7, "\x8B\x4D\xD4\x83\xC1\x7C\x8B\x82\xB4\x00\x00\x00\x89\x41\x48\x89\x51\x6C");
 	WriteRelJump(0x50DE20, (UInt32)UpdateAnimatedLightHook);
 	WriteRelCall(0x8C7C4E, (UInt32)UpdateAnimatedLightsHook);

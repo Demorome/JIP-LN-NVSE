@@ -178,6 +178,24 @@ public:
 		kAction_ref,
 		kAction_begin,
 		kAction_end,
+		//	UIO
+		kAction_neg,
+		kAction_recipr,
+		kAction_land,
+		kAction_lor,
+		kAction_shl,
+		kAction_shr,
+		kAction_bt,
+		kAction_sqrt,
+		kAction_pow,
+		kAction_sin,
+		kAction_cos,
+		kAction_tan,
+		kAction_asin,
+		kAction_acos,
+		kAction_atan,
+		kAction_log,
+		kAction_rand
 	};
 
 	// 0C
@@ -214,13 +232,33 @@ public:
 		char		*str;		// 0C
 		Action		*action;	// 10
 
-		__forceinline void SetFloat(float fltVal, bool bPropagate = true)
+		/*__forceinline void SetFloat(float fltVal, bool bPropagate = 0)
 		{
 			ThisCall(ADDR_TileValSetFloat, this, fltVal, bPropagate);
 		}
-		__forceinline void SetString(const char *strVal, bool bPropagate = true)
+		__forceinline void SetString(const char *strVal, bool bPropagate = 0)
 		{
 			ThisCall(0xA0A300, this, strVal, bPropagate);
+		}*/
+
+		void __vectorcall SetFloat(float value);
+		void SetString(const char *strVal);
+
+		__forceinline void Refresh(bool forceRefreshReactions = false)
+		{
+			ThisCall(0xA09410, this, forceRefreshReactions);
+		}
+		__forceinline void AddRefValueAction(UInt32 _action, Tile *ref, UInt32 value)
+		{
+			ThisCall(0xA09130, this, _action, ref, value);
+		}
+		__forceinline void AddFloatAction(UInt32 _action, float value)
+		{
+			ThisCall(0xA09080, this, _action, value);
+		}
+		__forceinline void RemoveFromReactionMap()
+		{
+			ThisCall(0xA09200, this);
 		}
 	};
 
@@ -252,6 +290,10 @@ public:
 	static UInt32 TraitNameToID(const char *traitName);
 	static UInt32 TraitNameToIDAdd(const char *traitName);
 	Value* __fastcall GetValue(UInt32 typeID);
+	__forceinline Value *AddValue(UInt32 typeID)
+	{
+		return ThisCall<Value*>(0xA01000, this, typeID);
+	}
 	Value *GetValueName(const char *valueName);
 	__forceinline float GetValueFloat(UInt32 id)
 	{
@@ -267,17 +309,25 @@ public:
 		return ThisCall<Tile*>(0xA01B00, this, xmlPath);
 	}
 	void GetComponentFullName(char *resStr);
-	__forceinline void SetFloat(UInt32 id, float fltVal, bool bPropagate = true)
+	__forceinline void SetFloat(UInt32 id, float fltVal, bool bPropagate = 0)
 	{
 		ThisCall(ADDR_TileSetFloat, this, id, fltVal, bPropagate);
 	}
-	__forceinline void SetString(UInt32 id, const char *strVal, bool bPropagate = true)
+	__forceinline void SetString(UInt32 id, const char *strVal, bool bPropagate = 0)
 	{
 		ThisCall(ADDR_TileSetString, this, id, strVal, bPropagate);
 	}
-	__forceinline void GradualSetFloat(UInt32 id, float startVal, float endVal, float seconds, UInt32 changeMode = 0)
+	__forceinline void StartGradualSetFloat(UInt32 id, float startVal, float endVal, float seconds, UInt32 changeMode = 0)
 	{
 		ThisCall(0xA07C60, this, id, startVal, endVal, seconds, changeMode);
+	}
+	__forceinline void EndGradualSetFloat(UInt32 id)
+	{
+		ThisCall(0xA07DC0, this, id);
+	}
+	__forceinline bool HasGradualSetFloat(UInt32 id)
+	{
+		return !ThisCall<bool>(0xA07FC0, this, id);
 	}
 	Menu *GetParentMenu();
 	void DestroyAllChildren();
@@ -291,8 +341,9 @@ public:
 
 	void Dump();
 };
+typedef Tile::Value TileValue;
 
-Tile* __fastcall GetTargetComponent(const char *componentPath, Tile::Value **value = NULL);
+Tile* __fastcall GetTargetComponent(const char *componentPath, TileValue **value = NULL);
 
 // 1C
 struct GradualSetFloat

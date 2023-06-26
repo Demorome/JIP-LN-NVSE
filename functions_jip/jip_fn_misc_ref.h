@@ -38,7 +38,7 @@ DEFINE_COMMAND_PLUGIN(GetTeleportDoor, 1, 0, nullptr);
 DEFINE_COMMAND_PLUGIN(SetOnCriticalHitEventHandler, 0, 5, kParams_OneForm_OneInt_ThreeOptionalForms);
 DEFINE_COMMAND_PLUGIN(MoveToFadeDelay, 1, 2, kParams_OneObjectRef_OneFloat);
 DEFINE_COMMAND_PLUGIN(GetCrosshairWater, 0, 0, nullptr);
-DEFINE_COMMAND_PLUGIN(IsAnimPlayingEx, 1, 3, kParams_OneInt_TwoOptionalInts);
+DEFINE_COMMAND_PLUGIN(IsAnimPlayingEx, 1, 4, kParams_OneInt_ThreeOptionalInts);
 DEFINE_COMMAND_PLUGIN(GetRigidBodyMass, 1, 0, nullptr);
 DEFINE_COMMAND_PLUGIN(PushObject, 1, 5, kParams_FourFloats_OneOptionalObjectRef);
 DEFINE_COMMAND_PLUGIN(MoveToContainer, 1, 2, kParams_OneObjectRef_OneOptionalInt);
@@ -65,8 +65,6 @@ DEFINE_COMMAND_PLUGIN(IsMobile, 1, 0, nullptr);
 DEFINE_COMMAND_PLUGIN(IsGrabbable, 1, 0, nullptr);
 DEFINE_COMMAND_PLUGIN(AttachLight, 1, 5, kParams_OneString_OneForm_ThreeOptionalFloats);
 DEFINE_COMMAND_PLUGIN(RemoveLight, 1, 1, kParams_OneString);
-DEFINE_CMD_COND_PLUGIN(GetExtraFloat, 1, 0, nullptr);
-DEFINE_COMMAND_PLUGIN(SetExtraFloat, 1, 1, kParams_OneFloat);
 DEFINE_COMMAND_PLUGIN(SetLinearVelocity, 1, 5, kParams_OneString_ThreeFloats_OneOptionalInt);
 DEFINE_COMMAND_PLUGIN(InsertNode, 0, 23, kParams_OneForm_OneInt_OneFormatString);
 DEFINE_COMMAND_PLUGIN(AttachModel, 0, 23, kParams_OneForm_OneInt_OneFormatString);
@@ -101,6 +99,10 @@ DEFINE_COMMAND_PLUGIN(ToggleNoZPosReset, 1, 1, kParams_OneInt);
 DEFINE_COMMAND_PLUGIN(RotateAroundPoint, 1, 7, kParams_SixFloats_OneOptionalInt);
 DEFINE_COMMAND_PLUGIN(ToggleNodeCollision, 1, 2, kParams_OneString_OneInt);
 DEFINE_COMMAND_PLUGIN(GetEditorPosition, 1, 6, kParams_ThreeScriptVars_ThreeOptionalScriptVars);
+DEFINE_COMMAND_PLUGIN(RefHasExtraData, 1, 1, kParams_OneOptionalInt);
+DEFINE_COMMAND_PLUGIN_EXP(GetRefExtraData, 1, 2, kParams_NVSE_OneNum_OneOptionalNum);
+DEFINE_COMMAND_PLUGIN_EXP(SetRefExtraData, 1, 2, kParams_NVSE_OneOptionalNum_OneOptionalBasicType);
+DEFINE_COMMAND_PLUGIN(TogglePurgeOnUnload, 1, 1, kParams_OneOptionalInt);
 
 bool Cmd_SetPersistent_Execute(COMMAND_ARGS)
 {
@@ -494,7 +496,7 @@ void __fastcall GetRefrContactObjects(TESObjectREFR *thisObj, ContactObjects &co
 	}
 }
 
-bool __fastcall GetHasContact(TESObjectREFR *thisObj, TESForm *form)
+bool __stdcall GetHasContact(TESObjectREFR *thisObj, TESForm *form)
 {
 	TempFormList *tmpFormLst = GetTempFormList();
 	PopulateFormSet(form, tmpFormLst);
@@ -539,7 +541,7 @@ bool Cmd_GetHasContact_Execute(COMMAND_ARGS)
 	return true;
 }
 
-bool __fastcall GetHasContactBase(TESObjectREFR *thisObj, TESForm *form)
+bool __stdcall GetHasContactBase(TESObjectREFR *thisObj, TESForm *form)
 {
 	TempFormList *tmpFormLst = GetTempFormList();
 	PopulateFormSet(form, tmpFormLst);
@@ -584,7 +586,7 @@ bool Cmd_GetHasContactBase_Execute(COMMAND_ARGS)
 	return true;
 }
 
-bool __fastcall GetHasContactType(TESObjectREFR *thisObj, UInt32 typeID)
+bool __stdcall GetHasContactType(TESObjectREFR *thisObj, UInt32 typeID)
 {
 	hkpWorldObject **bodies;
 	UInt32 count;
@@ -935,19 +937,25 @@ bool Cmd_GetCrosshairWater_Execute(COMMAND_ARGS)
 bool Cmd_IsAnimPlayingEx_Execute(COMMAND_ARGS)
 {
 	*result = 0;
-	UInt32 category, subType = 0, flags = 0;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &category, &subType, &flags))
+	UInt32 category, subType = 0, flags = 0, pcPOV = 0;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &category, &subType, &flags, &pcPOV))
 	{
-		AnimData *animData = thisObj->GetAnimData();
+		AnimData *animData = nullptr;
+		if (pcPOV && thisObj->IsPlayer())
+		{
+			PlayerCharacter *thePlayer = (PlayerCharacter*)thisObj;
+			if (!thePlayer->baseProcess || thePlayer->baseProcess->processLevel)
+				return true;
+			animData = (pcPOV == 1) ? thePlayer->animData1stPerson : ((HighProcess*)thePlayer->baseProcess)->animData;
+		}
+		else animData = thisObj->GetAnimData();
 		if (animData)
 		{
-			UInt32 animID;
-			const AnimGroupClassify *classify;
 			for (UInt16 groupID : animData->animGroupIDs)
 			{
-				animID = groupID & 0xFF;
+				UInt32 animID = groupID & 0xFF;
 				if (animID >= 245) continue;
-				classify = &kAnimGroupClassify[animID];
+				const AnimGroupClassify *classify = &kAnimGroupClassify[animID];
 				if ((classify->category == category) && ((category >= 4) || ((!subType || (classify->subType == subType)) && (!flags || (classify->flags & flags)))))
 				{
 					*result = 1;
@@ -995,16 +1003,14 @@ bool Cmd_MoveToContainer_Execute(COMMAND_ARGS)
 	{
 		if (thisObj == g_HUDMainMenu->crosshairRef)
 			CdeclCall(0x775A00, 0, 0, 0);
-		ExtraCount *xCount = GetExtraType(&thisObj->extraDataList, ExtraCount);
-		SInt32 quantity = xCount ? xCount->count : 1;
 		if (clrOwner) thisObj->extraDataList.RemoveByType(kXData_ExtraOwnership);
-		if (target->refID == 0x14)
-			ThisCall(0x953FF0, target, thisObj, quantity, 0);
+		if (target->IsPlayer())
+			ThisCall(0x953FF0, target, thisObj, 1, 0);
 		else
 		{
 			ThisCall(0x572230, thisObj);
-			ThisCall(0x574B30, target, thisObj, quantity, 0, 0);
-			if (!(thisObj->flags & 1) && !ThisCall<ModInfo*>(0x484E60, thisObj, 0xFFFFFFFF))
+			ThisCall(0x574B30, target, thisObj, 1, 0, 0);
+			if (!(thisObj->flags & 1) && thisObj->mods.Empty() && !ThisCall<bool>(0x41B3A0, &thisObj->extraDataList, 2))
 				thisObj->Destroy(true);
 		}
 	}
@@ -1088,7 +1094,7 @@ bool Cmd_SetNifBlockTranslation_Execute(COMMAND_ARGS)
 					if (ptLight->extraFlags & 1)
 						ptLight->vector100 = transltn;
 				}
-				niBlock->UpdateDownwardPass(kUpdateParams, 0);
+				niBlock->UpdateDownwardPass(kNiUpdateData, 0);
 			}
 		}
 		else
@@ -1154,7 +1160,7 @@ bool Cmd_SetNifBlockRotation_Execute(COMMAND_ARGS)
 					niBlock->LocalRotate().FromEulerPRYInv(rot * GET_PS(8));
 				if (IS_NODE(niBlock) && NOT_ACTOR(thisObj))
 					((NiNode*)niBlock)->ResetCollision();
-				niBlock->UpdateDownwardPass(kUpdateParams, 0);
+				niBlock->UpdateDownwardPass(kNiUpdateData, 0);
 			}
 		}
 		else if (transform != 1)
@@ -1192,7 +1198,7 @@ bool Cmd_SetNifBlockScale_Execute(COMMAND_ARGS)
 				niBlock->m_transformLocal.scale = newScale;
 				if (IS_NODE(niBlock) && NOT_ACTOR(thisObj))
 					((NiNode*)niBlock)->ResetCollision();
-				niBlock->UpdateDownwardPass(kUpdateParams, 0);
+				niBlock->UpdateDownwardPass(kNiUpdateData, 0);
 			}
 		}
 		else ThisCall(0x567490, thisObj, newScale);
@@ -1445,7 +1451,7 @@ bool Cmd_GetNifBlockParentNodes_Execute(COMMAND_ARGS)
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &blockName, &pcNode))
 	{
 		NiNode *rootNode;
-		if (pcNode && (thisObj->refID == 0x14))
+		if (pcNode && thisObj->IsPlayer())
 		{
 			if (pcNode & 1)
 				rootNode = thisObj->GetRefNiNode();
@@ -1572,64 +1578,6 @@ bool Cmd_RemoveLight_Execute(COMMAND_ARGS)
 	return true;
 }
 
-bool Cmd_GetExtraFloat_Execute(COMMAND_ARGS)
-{
-	*result = 0;
-	ExtraDataList *xData = nullptr;
-	InventoryRef *invRef = InventoryRefGetForID(thisObj->refID);
-	if (invRef)
-		xData = invRef->xData;
-	else xData = &thisObj->extraDataList;
-	if (xData)
-	{
-		ExtraTimeLeft *xTimeLeft = GetExtraType(xData, ExtraTimeLeft);
-		if (xTimeLeft)
-			*result = xTimeLeft->timeLeft;
-	}
-	return true;
-}
-
-bool Cmd_GetExtraFloat_Eval(COMMAND_ARGS_EVAL)
-{
-	ExtraTimeLeft *xTimeLeft = GetExtraType(&thisObj->extraDataList, ExtraTimeLeft);
-	*result = xTimeLeft ? xTimeLeft->timeLeft : 0;
-	return true;
-}
-
-bool Cmd_SetExtraFloat_Execute(COMMAND_ARGS)
-{
-	float fltVal;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &fltVal))
-	{
-		ExtraDataList *xData = nullptr;
-		InventoryRef *invRef = InventoryRefGetForID(thisObj->refID);
-		if (invRef)
-		{
-			xData = invRef->xData;
-			if (!xData)
-			{
-				if (xData = invRef->CreateExtraData())
-				{
-					SInt32 count = invRef->GetCount();
-					if (count > 1)
-						xData->AddExtra(ExtraCount::Create(count));
-					xData->AddExtra(ExtraTimeLeft::Create(fltVal));
-				}
-				return true;
-			}
-		}
-		else xData = &thisObj->extraDataList;
-		ExtraTimeLeft *xTimeLeft = GetExtraType(xData, ExtraTimeLeft);
-		if (xTimeLeft)
-			xTimeLeft->timeLeft = fltVal;
-		else xData->AddExtra(ExtraTimeLeft::Create(fltVal));
-		if (!invRef)
-			thisObj->MarkModified(0x400);
-		else invRef->containerRef->MarkModified(0x400);
-	}
-	return true;
-}
-
 bool Cmd_SetLinearVelocity_Execute(COMMAND_ARGS)
 {
 	*result = 0;
@@ -1666,7 +1614,7 @@ bool __fastcall RegisterInsertObject(char *inData)
 			modifyMap = false;
 		}
 	}
-	else if (!form->IsBoundObject())
+	else if (!form->GetModelPath())
 		return false;
 
 	char *pInData = inData + 8, *nodeName = nullptr, *objectName = FindChr(pInData, '|'), *suffix;
@@ -1724,7 +1672,7 @@ bool __fastcall RegisterInsertObject(char *inData)
 				else if ((rootNode = DoAttachModel(targetObj, objectName, pDataStr, rootNode)) && (rootNode->m_flags & 0x20000000))
 					AddPointLights(rootNode);
 			}
-			if ((refr->refID == 0x14) && (rootNode = s_pc1stPersonNode))
+			if (refr->IsPlayer() && (rootNode = s_pc1stPersonNode))
 			{
 				targetObj = useRoot ? rootNode : rootNode->GetBlockByName(blockName);
 				if (targetObj)
@@ -1749,7 +1697,7 @@ bool __fastcall RegisterInsertObject(char *inData)
 			NiAVObject *object = rootNode->GetBlockByName(findData());
 			if (object)
 				object->m_parent->RemoveObject(object);
-			if ((refr->refID == 0x14) && (rootNode = s_pc1stPersonNode))
+			if (refr->IsPlayer() && (rootNode = s_pc1stPersonNode))
 			{
 				object = rootNode->GetBlockByName(findData());
 				if (object)
@@ -2059,7 +2007,7 @@ bool Cmd_GetAngleEx_Execute(COMMAND_ARGS)
 		else
 		{
 			NiNode *rootNode = thisObj->GetRefNiNode();
-			if (rootNode && (thisObj->refID != 0x14))
+			if (rootNode && !thisObj->IsPlayer())
 				angles = rootNode->WorldRotate().ToEulerPRYInv();
 			else
 			{
@@ -2081,9 +2029,7 @@ bool Cmd_SetTextureTransformKey_Execute(COMMAND_ARGS)
 	{
 		NiAVObject *block = thisObj->GetNiBlock(blockName);
 		if (block && IS_GEOMETRY(block))
-		{
-			NiTexturingProperty *texProp = ((NiGeometry*)block)->texturingProp;
-			if (texProp)
+			if (NiTexturingProperty *texProp = ((NiGeometry*)block)->texturingProp)
 			{
 				NiTextureTransformController *ctrlr = (NiTextureTransformController*)texProp->m_controller;
 				while (ctrlr && ctrlIndex)
@@ -2098,11 +2044,13 @@ bool Cmd_SetTextureTransformKey_Execute(COMMAND_ARGS)
 					{
 						NiFloatData *fltData = intrpl->data;
 						if (fltData && IS_TYPE(fltData, NiFloatData) && (keyIndex < fltData->numKeys))
+						{
 							fltData->data[keyIndex].value = value;
+							ctrlr->Update(kNiUpdateData);
+						}
 					}
 				}
 			}
-		}
 	}
 	return true;
 }
@@ -2139,7 +2087,7 @@ bool Cmd_AttachExtraCamera_Execute(COMMAND_ARGS)
 				if (xCamera->m_parent != targetNode)
 				{
 					targetNode->AddObject(xCamera, 1);
-					xCamera->UpdateDownwardPass(kUpdateParams, 0);
+					xCamera->UpdateDownwardPass(kNiUpdateData, 0);
 				}
 				*result = 1;
 			}
@@ -2522,13 +2470,9 @@ bool Cmd_AttachLine_Execute(COMMAND_ARGS)
 		if (targetNode)
 		{
 			color *= 1 / 255.0F;
-			NiLines *lines = NiLines::Create(length, color, lineName);
-			targetNode->AddObject(lines, 1);
-			if ((thisObj->refID == 0x14) && (targetNode = s_pc1stPersonNode->GetNode(nodeName)))
-			{
-				lines = NiLines::Create(length, color, lineName);
-				targetNode->AddObject(lines, 1);
-			}
+			targetNode->AddObject(NiLines::Create(length, color, lineName), 1);
+			if (thisObj->IsPlayer() && (targetNode = s_pc1stPersonNode->GetNode(nodeName)))
+				targetNode->AddObject(NiLines::Create(length, color, lineName), 1);
 			*result = 1;
 		}
 	}
@@ -2617,6 +2561,186 @@ bool Cmd_GetEditorPosition_Execute(COMMAND_ARGS)
 				outRot.Set(pRotVec->PS(), GET_PS(9));
 			REFR_RES = worldOrCell->refID;
 		}		
+	}
+	return true;
+}
+
+ExtraJIPData* __fastcall GetExtraJIPData(TESObjectREFR *thisObj, UInt32 modIdx)
+{
+	InventoryRef *invRef = InventoryRefGetForID(thisObj->refID);
+	if (ExtraDataList *xData = invRef ? invRef->xData : &thisObj->extraDataList)
+		if (ExtraJIP *xJIP = GetExtraType(xData, ExtraJIP))
+			if (ExtraJIPEntry *entry = s_extraDataKeysMap->GetPtr(xJIP->key))
+				return entry->dataMap.GetPtr(modIdx);
+	return nullptr;
+}
+
+bool Cmd_RefHasExtraData_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	UInt32 modIdx = 0;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &modIdx))
+	{
+		if (!modIdx)
+			modIdx = scriptObj->GetOverridingModIdx();
+		if (modIdx < 0xFF)
+		{
+			XDATA_CS
+			if (GetExtraJIPData(thisObj, modIdx))
+				*result = 1;
+		}
+	}
+	return true;
+}
+
+bool Cmd_GetRefExtraData_Execute(COMMAND_ARGS)
+{
+	*result = 0;
+	double fVarIdx, fModIdx = 0;
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgsVA(nullptr, &fVarIdx, &fModIdx))
+	{
+		UInt32 varIdx = (int)fVarIdx;
+		if (varIdx > 19) return true;
+		UInt32 modIdx = (int)fModIdx;
+		if (!modIdx)
+			modIdx = scriptObj->GetOverridingModIdx();
+		if (modIdx >= 0xFF) return true;
+		XDATA_CS
+		if (ExtraJIPData *pData = GetExtraJIPData(thisObj, modIdx))
+		{
+			if (varIdx >= 18)
+			{
+				AssignString(PASS_COMMAND_ARGS, pData->strings[varIdx - 18].Data());
+				eval.SetExpectedReturnType(kRetnType_String);
+			}
+			else if (pData->IsRef(varIdx))
+			{
+				REFR_RES = pData->values[varIdx];
+				eval.SetExpectedReturnType(kRetnType_Form);
+			}
+			else *result = pData->values[varIdx];
+		}
+	}
+	return true;
+}
+
+bool Cmd_SetRefExtraData_Execute(COMMAND_ARGS)
+{
+	UInt32 modIdx = scriptObj->GetOverridingModIdx();
+	if (modIdx == 0xFF) return true;
+	if (PluginExpressionEvaluator eval(PASS_COMMAND_ARGS); eval.ExtractArgs())
+	{
+		UInt32 varIdx;
+		PluginScriptToken *tIndex = eval.GetNthArg(0), *tValue;
+		if (tIndex)
+		{
+			varIdx = tIndex->GetInt();
+			if ((varIdx > 19) || !(tValue = eval.GetNthArg(1)))
+				return true;
+		}
+		
+		XDATA_CS
+
+		TESObjectREFR *refr = thisObj;
+		ExtraJIP *xJIP;
+		if (InventoryRef *invRef = InventoryRefGetForID(thisObj->refID))
+		{
+			refr = invRef->containerRef;
+			ExtraDataList *xData = invRef->xData;
+			if (tIndex)
+			{
+				if (!xData)
+				{
+					if (!(xData = invRef->CreateExtraData()))
+						return true;
+					if (invRef->GetCount() > 1)
+						xData->AddExtraCount(invRef->GetCount());
+					xJIP = xData->AddExtraJIP();
+				}
+				else if (!(xJIP = GetExtraType(xData, ExtraJIP)))
+					xJIP = xData->AddExtraJIP();
+			}
+			else
+			{
+				if (xData && (xJIP = GetExtraType(xData, ExtraJIP)))
+				{
+					ExtraJIPEntry *dataEntry = s_extraDataKeysMap->GetPtr(xJIP->key);
+					if (dataEntry && dataEntry->dataMap.Erase(modIdx))
+					{
+						s_dataChangedFlags |= kChangedFlag_ExtraData;
+						if (dataEntry->dataMap.Empty())
+						{
+							dataEntry->refID = 0;
+							xData->RemoveByType(kXData_ExtraJIP);
+							if (!xData->m_data || ((xData->m_data->type == kXData_ExtraCount) && !xData->m_data->next))
+							{
+								if (ContChangesEntry *entry = refr->GetContainerChangesEntry(invRef->type))
+								{
+									entry->extendData->Remove(xData);
+									xData->Destroy(1);
+								}
+							}
+						}
+					}
+				}
+				return true;
+			}
+		}
+		else
+		{
+			xJIP = GetExtraType(&thisObj->extraDataList, ExtraJIP);
+			if (tIndex)
+			{
+				if (!xJIP)
+					xJIP = thisObj->extraDataList.AddExtraJIP();
+			}
+			else
+			{
+				if (xJIP)
+				{
+					ExtraJIPEntry *dataEntry = s_extraDataKeysMap->GetPtr(xJIP->key);
+					if (dataEntry && dataEntry->dataMap.Erase(modIdx))
+					{
+						s_dataChangedFlags |= kChangedFlag_ExtraData;
+						if (dataEntry->dataMap.Empty())
+						{
+							dataEntry->refID = 0;
+							thisObj->extraDataList.RemoveByType(kXData_ExtraJIP);
+						}
+					}
+				}
+				return true;
+			}
+		}
+		if (!xJIP->key)
+		{
+			xJIP->key = ExtraJIP::MakeKey();
+			refr->MarkModified(0x400);
+		}
+		ExtraJIPData *pData = &s_extraDataKeysMap()[xJIP->key].dataMap[modIdx];
+		if (varIdx < 18)
+		{
+			if (tValue->CanConvertTo(kTokenType_Form))
+				pData->Set(varIdx, tValue->GetFormID());
+			else
+				pData->Set(varIdx, tValue->GetFloat());
+		}
+		else if (tValue->CanConvertTo(kTokenType_String))
+			pData->Set(varIdx - 18, tValue->GetString());
+		s_dataChangedFlags |= kChangedFlag_ExtraData;
+	}
+	return true;
+}
+
+bool Cmd_TogglePurgeOnUnload_Execute(COMMAND_ARGS)
+{
+	BOOL currState = _bittest((SInt32*)&thisObj->flags, 0x16);
+	*result = currState;
+	UInt32 toggle;
+	if (NUM_ARGS && ExtractArgsEx(EXTRACT_ARGS_EX, &toggle) && (currState != toggle) && thisObj->IsCreated() && !thisObj->IsPersistent())
+	{
+		thisObj->flags ^= 0x400000;
+		thisObj->MarkModified(1);
 	}
 	return true;
 }

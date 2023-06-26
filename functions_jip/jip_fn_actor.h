@@ -365,14 +365,21 @@ bool Cmd_PickFromList_Execute(COMMAND_ARGS)
 	REFR_RES = 0;
 	BGSListForm *listForm;
 	SInt32 start = 0, len = -1;
-	if (!thisObj->baseForm->GetContainer() || !ExtractArgsEx(EXTRACT_ARGS_EX, &listForm, &start, &len) || (start < 0)) return true;
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &listForm, &start, &len) || (start < 0))
+		return true;
+	TESContainer *container = thisObj->baseForm->GetContainer();
+	if (!container) return true;
+	ContChangesEntryList *entryList = thisObj->GetContainerChangesList();
+	if (!entryList) return true;
 	auto iter = listForm->list.Head();
 	TESForm *item;
 	do
 	{
 		if (start-- > 0) continue;
-		if (!len-- || !(item = iter->data)) break;
-		if (thisObj->GetItemCount(item) < 1) continue;
+		if (!len-- || !(item = iter->data))
+			break;
+		if (GetFormCount(&container->formCountList, entryList, item) < 1)
+			continue;
 		REFR_RES = item->refID;
 		break;
 	}
@@ -529,7 +536,7 @@ void __fastcall GetCombatActors(TESObjectREFR *thisObj, Script *scriptObj, bool 
 	UInt32 count;
 	Actor *actor;
 	TempElements *tmpElements = GetTempElements();
-	if (thisObj->refID == 0x14)
+	if (thisObj->IsPlayer())
 	{
 		CombatActors *cmbActors = g_thePlayer->combatActors;
 		if (!cmbActors) return;
@@ -599,7 +606,7 @@ void __fastcall GetDetectionData(TESObjectREFR *thisObj, Script *scriptObj, bool
 	if (NOT_ACTOR(thisObj)) return;
 	TempElements *tmpElements = GetTempElements();
 	Actor *actor = (Actor*)thisObj;
-	if (actor->refID == 0x14)
+	if (actor->IsPlayer())
 	{
 		ProcessManager *procMngr = ProcessManager::Get();
 		MobileObject **objArray = procMngr->objects.data, **arrEnd = objArray;
@@ -753,7 +760,7 @@ bool Cmd_IsInCombatWith_Execute(COMMAND_ARGS)
 	Actor *target;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &target))
 	{
-		if (thisObj->refID == 0x14)
+		if (thisObj->IsPlayer())
 		{
 			CombatActors *cmbActors = g_thePlayer->combatActors;
 			if (!cmbActors) return true;
@@ -837,7 +844,7 @@ bool Cmd_ResetFallTime_Execute(COMMAND_ARGS)
 float __fastcall GetRadiationLevelAlt(Actor *actor)
 {
 	if (NOT_ACTOR(actor) || !actor->baseProcess || actor->baseProcess->processLevel) return 0;
-	if (actor->refID == 0x14)
+	if (actor->IsPlayer())
 	{
 		HighProcess *hiProc = (HighProcess*)actor->baseProcess;
 		return hiProc->waterRadsSec + hiProc->rads238 + hiProc->GetRadsSec();
@@ -1411,16 +1418,16 @@ __declspec(naked) bool Cmd_KillActorAlt_Execute(COMMAND_ARGS)
 	JMP_EAX(0x5BE2A0)
 }
 
-__declspec(naked) void __fastcall ReloadBipedAnim(BipedAnim *bipAnim, UInt32 reloadMask)
+__declspec(naked) void __fastcall ReloadBipedAnim(BipedAnim *bipAnim, NiNode *rootNode, UInt32 reloadMask)
 {
 	__asm
 	{
-		push	ebx
 		push	esi
 		push	edi
-		mov		ebx, ecx
+		push	edx
+		push	ecx
 		lea		esi, [ecx+0x24]
-		mov		edi, edx
+		mov		edi, [esp+0x14]
 		ALIGN 16
 	iterHead:
 		test	edi, edi
@@ -1431,7 +1438,7 @@ __declspec(naked) void __fastcall ReloadBipedAnim(BipedAnim *bipAnim, UInt32 rel
 		mov		eax, [esi]
 		test	eax, eax
 		jz		iterHead
-		mov		dword ptr [esi], 0
+		and		dword ptr [esi], 0
 		mov		ecx, [eax+0x18]
 		test	ecx, ecx
 		jz		iterHead
@@ -1441,32 +1448,34 @@ __declspec(naked) void __fastcall ReloadBipedAnim(BipedAnim *bipAnim, UInt32 rel
 		jmp		iterHead
 		ALIGN 16
 	doneClear:
+		pop		esi
 		push	0
-		push	ebx
-		mov		eax, [ebx+0x2B0]
+		push	esi
+		mov		eax, [esi+0x2B0]
 		push	eax
 		mov		ecx, [eax+0x20]
 		CALL_EAX(0x606540)
 		push	0
-		mov		ecx, ebx
+		mov		ecx, esi
 		CALL_EAX(0x4AC1E0)
-		mov		ebx, [ebx]
-		mov		esi, [ebx]
-		mov		ecx, ebx
+		pop		esi
+		mov		ecx, esi
 		CALL_EAX(0xA5A040)
 		push	0
-		push	offset kUpdateParams
-		mov		ecx, ebx
-		call	dword ptr [esi+0xA4]
+		push	offset kNiUpdateData
+		mov		ecx, esi
+		mov		eax, [ecx]
+		call	dword ptr [eax+0xA4]
 		pop		edi
 		pop		esi
-		pop		ebx
-		retn
+		retn	4
 	}
 }
 
 bool Cmd_ReloadEquippedModels_Execute(COMMAND_ARGS)
 {
+	if (g_OSGlobals->tfcState && g_OSGlobals->freezeTime)
+		return true;
 	SInt32 targetSlot = -1;
 	Character *character = (Character*)thisObj;
 	if (!character->IsCharacter() || !character->GetRefNiNode() || !character->bipedAnims || !character->baseProcess || character->baseProcess->processLevel ||
@@ -1483,10 +1492,11 @@ bool Cmd_ReloadEquippedModels_Execute(COMMAND_ARGS)
 	UInt32 reloadMask = 0xFFFBF;
 	if (targetSlot >= 0)
 		reloadMask &= (1 << targetSlot);
-	ReloadBipedAnim(character->bipedAnims, reloadMask);
-	if (character->refID == 0x14)
+	ReloadBipedAnim(character->bipedAnims, character->GetRefNiNode(), reloadMask);
+	if (character->IsPlayer())
 	{
-		ReloadBipedAnim(((PlayerCharacter*)character)->bipedAnims1stPerson, reloadMask);
+		PlayerCharacter *thePC = (PlayerCharacter*)character;
+		ReloadBipedAnim(thePC->bipedAnims1stPerson, thePC->node1stPerson, reloadMask);
 		if (weapon)
 		{
 			CdeclCall(0x77F270);
@@ -1941,7 +1951,7 @@ bool Cmd_DonnerReedKuruParty_Execute(COMMAND_ARGS)
 			if (xDismembered->wasEaten != wasEaten)
 			{
 				if (!wasEaten && !xDismembered->dismemberedMask)
-					thisObj->extraDataList.RemoveExtra(xDismembered, true);
+					thisObj->extraDataList.RemoveByType(kXData_ExtraDismemberedLimbs);
 				else xDismembered->wasEaten = wasEaten;
 				thisObj->MarkModified(0x20000);
 			}
@@ -1963,7 +1973,7 @@ bool Cmd_GetEquippedEx_Execute(COMMAND_ARGS)
 	BGSListForm *listForm;
 	if (IS_ACTOR(thisObj) && ExtractArgsEx(EXTRACT_ARGS_EX, &listForm))
 	{
-		ExtraContainerChanges::EntryDataList *entryList = thisObj->GetContainerChangesList();
+		ContChangesEntryList *entryList = thisObj->GetContainerChangesList();
 		if (entryList)
 		{
 			auto listIter = listForm->list.Head();
@@ -2208,7 +2218,9 @@ bool Cmd_GetInFactionList_Execute(COMMAND_ARGS)
 
 bool Cmd_GetInFactionList_Eval(COMMAND_ARGS_EVAL)
 {
-	*result = GetInFactionList((Actor*)thisObj, (BGSListForm*)arg1);
+	if (arg1)
+		*result = GetInFactionList((Actor*)thisObj, (BGSListForm*)arg1);
+	else *result = 0;
 	return true;
 }
 
@@ -2277,7 +2289,7 @@ __declspec(naked) MuzzleFlash* __fastcall GetMuzzleFlashHook(HighProcess *hiProc
 		cmp		word ptr [eax], 0
 		jnz		done
 		mov		byte ptr [eax+3], 0
-		mov		dword ptr [ecx+0x130], 0
+		and		dword ptr [ecx+0x130], 0
 	done:
 		retn
 	}
@@ -2289,9 +2301,9 @@ __declspec(naked) void __fastcall DoFireWeaponEx(TESObjectREFR *refr, int EDX, T
 	{
 		mov		edx, [ecx+0x68]
 		push	dword ptr [edx+0x118]
-		mov		dword ptr [edx+0x118], 0
+		and		dword ptr [edx+0x118], 0
 		push	dword ptr [edx+0x114]
-		mov		dword ptr [edx+0x114], 0
+		and		dword ptr [edx+0x114], 0
 		push	edx
 		push	ecx
 		mov		ecx, [esp+0x14]
@@ -2444,7 +2456,7 @@ bool Cmd_RemoveAllPerks_Execute(COMMAND_ARGS)
 	if (IS_ACTOR(thisObj) && ExtractArgsEx(EXTRACT_ARGS_EX, &forTeammates))
 	{
 		Actor *actor = (Actor*)thisObj;
-		if (actor->refID == 0x14)
+		if (actor->IsPlayer())
 		{
 			auto perkIter = forTeammates ? g_thePlayer->perkRanksTM.Head() : g_thePlayer->perkRanksPC.Head();
 			do

@@ -145,7 +145,7 @@ void __vectorcall NiMaterialProperty::SetTraitValue(UInt32 traitID, float value)
 	}
 }
 
-const UpdateParams kUpdateParams;
+const NiUpdateData kNiUpdateData;
 
 __declspec(naked) void NiAVObject::Update()
 {
@@ -153,7 +153,7 @@ __declspec(naked) void NiAVObject::Update()
 	{
 		push	ecx
 		push	0
-		push	offset kUpdateParams
+		push	offset kNiUpdateData
 		mov		eax, [ecx]
 		call	dword ptr [eax+0xA4]
 		pop		ecx
@@ -210,7 +210,7 @@ __declspec(naked) bool NiAVObject::ReplaceObject(NiAVObject *object)
 		push	edx
 		push	eax
 		mov		eax, [ecx+0x18]
-		mov		dword ptr [ecx+0x18], 0
+		and		dword ptr [ecx+0x18], 0
 		mov		[edx+0x18], eax
 		call	NiReleaseAddRef
 		mov		al, 1
@@ -325,9 +325,9 @@ void NiAVObject::Dump(UInt8 dumpFlags)
 	}
 	if (dumpFlags & 0x10)
 	{
-		if (m_kWorldBound)
-			PrintDebug("(WB) (%.4f, %.4f, %.4f) R = %.4f", m_kWorldBound->x, m_kWorldBound->y, m_kWorldBound->z, m_kWorldBound->radius);
-		PrintDebug("(WT) (%.4f, %.4f, %.4f)", m_transformWorld.translate.x, m_transformWorld.translate.y, m_transformWorld.translate.z);
+		/*if (m_kWorldBound)
+			PrintDebug("(WB) (%.4f, %.4f, %.4f) R = %.4f", m_kWorldBound->x, m_kWorldBound->y, m_kWorldBound->z, m_kWorldBound->radius);*/
+		PrintDebug("(WT) (%.4f, %.4f, %.4f) S %.4f", m_transformWorld.translate.x, m_transformWorld.translate.y, m_transformWorld.translate.z, m_transformWorld.scale);
 
 		/*m_transformLocal.Dump();
 		m_transformWorld.Dump();*/
@@ -788,7 +788,7 @@ __declspec(naked) void NiNode::ResetShaderRenderPass()
 		mov		eax, [ecx+0xA8]
 		test	eax, eax
 		jz		iterHead
-		mov		dword ptr [eax+0x38], 0
+		and		dword ptr [eax+0x38], 0
 		jmp		iterHead
 		ALIGN 16
 	iterEnd:

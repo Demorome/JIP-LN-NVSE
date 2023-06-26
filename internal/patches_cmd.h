@@ -94,7 +94,7 @@ UInt8 __fastcall DoGetPerkRank(Actor *actor, BGSPerk *perk, bool forTeammates)
 	{
 		if (s_NPCPerks)
 			return actor->GetPerkRank(perk, forTeammates);
-		else if ((actor->refID == 0x14) || actor->isTeammate)
+		else if (actor->IsPlayer() || actor->isTeammate)
 			return g_thePlayer->GetPerkRank(perk, forTeammates | actor->isTeammate);
 	}
 	return 0;
@@ -423,10 +423,35 @@ bool Hook_IsRefInList_Eval(TESObjectREFR *thisObj, BGSListForm *listForm, TESFor
 
 bool Hook_Update3D_Execute(COMMAND_ARGS)
 {
-	if (thisObj->refID == 0x14)
+	if (thisObj->IsPlayer())
 		ThisCall(0x8D3FA0, thisObj);
 	else
 		thisObj->Update3D();
+	return true;
+}
+
+//	Added support for models set per-refr, via SetRefrModelPath
+bool Hook_GetModelPath_Execute(COMMAND_ARGS)
+{
+	TESForm *pForm = nullptr;
+	const char *pathStr = nullptr;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &pForm) && (pForm || thisObj))
+	{
+		TESObjectREFR *pRefr;
+		if (!pForm)
+		{
+			pRefr = thisObj;
+			pForm = pRefr->baseForm;
+		}
+		else
+		{
+			pRefr = IS_REFERENCE(pForm) ? (TESObjectREFR*)pForm : nullptr;
+			if (pRefr) pForm = pRefr->baseForm;
+		}
+		if (pForm && (!pRefr || !(pRefr->JIPRefFlags() & kHookRefFlag5F_RefrModelPath) || !(pathStr = s_refrModelPathMap->Get(pRefr))))
+			pathStr = pForm->GetModelPath();
+	}
+	AssignString(PASS_COMMAND_ARGS, pathStr);
 	return true;
 }
 
@@ -514,6 +539,8 @@ void InitCmdPatches()
 	cmdInfo->eval = (Cmd_Eval)Hook_IsRefInList_Eval;
 	cmdInfo = GetCmdByOpcode(0x152D);
 	cmdInfo->execute = Hook_Update3D_Execute;
+	cmdInfo = GetCmdByOpcode(0x158E);
+	cmdInfo->execute = Hook_GetModelPath_Execute;
 	cmdInfo = GetCmdByOpcode(0x15DF);
 	cmdInfo->execute = Hook_IsPluginInstalled_Execute;
 	cmdInfo = GetCmdByOpcode(0x15E0);

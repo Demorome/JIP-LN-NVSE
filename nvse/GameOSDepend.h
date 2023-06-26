@@ -7,6 +7,22 @@
 
 #define MAX_CONTROL_BIND 28
 
+enum KeyState
+{
+	kKeyState_Held,
+	kKeyState_Pressed,
+	kKeyState_Depressed,
+	kKeyState_Changed
+};
+
+enum ControllerState
+{
+	kCtrlState_NotHeld = -1,
+	kCtrlState_Held,
+	kCtrlState_Depressed,
+	kCtrlState_Pressed
+};
+
 enum XboxControlCode
 {
 	kXboxCtrl_DPAD_UP = 1,
@@ -29,6 +45,25 @@ enum XboxControlCode
 	kXboxCtrl_LS_DOWN,
 	kXboxCtrl_LS_RIGHT = 0x16,
 	kXboxCtrl_LS_LEFT,
+};
+
+enum XboxButtonBit
+{
+	kXboxBit_DPAD_UP,
+	kXboxBit_DPAD_DOWN,
+	kXboxBit_DPAD_LEFT,
+	kXboxBit_DPAD_RIGHT,
+	kXboxBit_START,
+	kXboxBit_BACK,
+	kXboxBit_LS_BUTTON,
+	kXboxBit_RS_BUTTON,
+	kXboxBit_LB,
+	kXboxBit_RB,
+	kXboxBit_GUIDE,
+	kXboxBit_BUTTON_A = 0xC,
+	kXboxBit_BUTTON_B,
+	kXboxBit_BUTTON_X,
+	kXboxBit_BUTTON_Y
 };
 
 enum XboxButtonMask

@@ -2,17 +2,17 @@
 
 const UInt32 kBaseComponentOffsets[] =
 {
-	0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000006, 0x000006, 0x000006, 0x000006,
-	0x000006, 0x000006, 0x000000, 0x000000, 0x000000, 0x00000E, 0x000000, 0x000000, 0x000006, 0x000006, 0x1A170C,
-	0x1A170C, 0x1A170C, 0x530F0C, 0x271A0C, 0x000000, 0x1F1A0F, 0x1A170C, 0x251E0C, 0x251E0C, 0x211A0C, 0x000000,
-	0x000000, 0xFE00FB, 0x000000, 0x000000, 0x150000, 0x000000, 0x1A170C, 0x2D1A0C, 0x22270C, 0x413D34, 0x413D34,
-	0x000000, 0x000000, 0x211A0C, 0x29220C, 0x000000, 0x000012, 0x000000, 0x16000C, 0x000000, 0x000000, 0x000000,
-	0x000000, 0x000000, 0x000006, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000006,
-	0x000000, 0x000000, 0x000000, 0x000006, 0x000000, 0x00060C, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000,
-	0x000000, 0x000006, 0x000000, 0x000000, 0x00000C, 0x000000, 0x000000, 0x000000, 0x000000, 0x000006, 0x000000,
-	0x000000, 0x000006, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000006,
-	0x000000, 0x000000, 0x000000, 0x000000, 0x231A0C, 0x000006, 0x000000, 0x000006, 0x000006, 0x20000C, 0x000006,
-	0x000000, 0x000006, 0x000006, 0x000B06, 0x000006, 0x00200C, 0x00000C, 0x000006, 0x000000, 0x000000, 0x000000
+	0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000006, 0x00000006, 0x09000006, 0x09000006,
+	0x00000006, 0x00000006, 0x00000000, 0x00000000, 0x00000000, 0x0600000E, 0x00000000, 0x00000000, 0x00000006, 0x00000006, 0x0F1A170C,
+	0x0F1A170C, 0x0F1A170C, 0x1F530F0C, 0x0F271A0C, 0x00000000, 0x121F1A0F, 0x0F1A170C, 0x13251E0C, 0x0F251E0C, 0x0F211A0C, 0x0C000000,
+	0x0C000000, 0x0CFE00FB, 0x0C000000, 0x0C000000, 0x0C150000, 0x00000000, 0x0F1A170C, 0x0F2D1A0C, 0x0F22270C, 0x37413D34, 0x37413D34,
+	0x13000000, 0x13000000, 0x0F211A0C, 0x1329220C, 0x00000000, 0x0C000012, 0x00000000, 0x0F16000C, 0x00000000, 0x00000000, 0x00000000,
+	0x00000000, 0x00000000, 0x00000006, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000006,
+	0x00000000, 0x00000000, 0x00000000, 0x00000006, 0x00000000, 0x0000060C, 0x06000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+	0x06000000, 0x00000006, 0x00000000, 0x00000000, 0x0F00000C, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000006, 0x06000000,
+	0x0C000000, 0x00000006, 0x00000000, 0x06000000, 0x00000000, 0x00000000, 0x06000000, 0x00000000, 0x00000000, 0x00000000, 0x00000006,
+	0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x0F231A0C, 0x00000006, 0x00000000, 0x00000006, 0x00000006, 0x0F20000C, 0x00000006,
+	0x00000000, 0x00000006, 0x00000006, 0x00000B06, 0x00000006, 0x0F00200C, 0x0F00000C, 0x00000006, 0x00000000, 0x00000000, 0x00000000
 };
 
 __declspec(naked) TESFullName *TESForm::GetFullName() const
@@ -174,18 +174,18 @@ __declspec(naked) UInt8 TESForm::GetOverridingModIdx() const
 	__asm
 	{
 		add		ecx, 0x10
+		mov		al, 0xFF
 		ALIGN 16
 	iterHead:
-		mov		eax, [ecx]
+		mov		edx, ecx
 		mov		ecx, [ecx+4]
 		test	ecx, ecx
 		jnz		iterHead
-		test	eax, eax
-		jz		noInfo
-		mov		al, [eax+0x40C]
-		retn
-	noInfo:
-		mov		al, 0xFF
+		mov		ecx, [edx]
+		test	ecx, ecx
+		jz		done
+		mov		al, [ecx+0x40C]
+	done:
 		retn
 	}
 }
@@ -224,16 +224,23 @@ const char *TESForm::RefToString()
 	return refStr;
 }
 
-const char *TESForm::GetModelPath() const
+__declspec(naked) const char *TESForm::GetModelPath() const
 {
-	TESModel *baseModel = DYNAMIC_CAST(this, TESForm, TESModel);
-	if (baseModel)
+	__asm
 	{
-		const char *modelPath = baseModel->nifPath.m_data;
-		if (modelPath && *modelPath)
-			return modelPath;
+		movzx	edx, byte ptr [ecx+4]
+		movsx	eax, byte ptr kBaseComponentOffsets[edx*4+3]
+		test	eax, eax
+		jz		done
+		mov		eax, [ecx+eax*4+4]
+		test	eax, eax
+		jz		done
+		cmp		[eax], 0
+		jnz		done
+		xor		eax, eax
+	done:
+		retn
 	}
-	return nullptr;
 }
 
 extern ModelLoader *g_modelLoader;
@@ -285,6 +292,29 @@ __declspec(naked) MagicItem *TESForm::GetMagicItem() const
 		retn
 	retnNULL:
 		xor		eax, eax
+		retn
+	}
+}
+
+__declspec(naked) bool __fastcall TESContainer::ContainsForm(TESForm *form) const
+{
+	__asm
+	{
+		add		ecx, 4
+		ALIGN 16
+	iterHead:
+		test	ecx, ecx
+		jz		retn0
+		mov		eax, [ecx]
+		mov		ecx, [ecx+4]
+		test	eax, eax
+		jz		iterHead
+		cmp		[eax+4], edx
+		jnz		iterHead
+		mov		al, 1
+		retn
+	retn0:
+		xor		al, al
 		retn
 	}
 }
@@ -355,32 +385,28 @@ __declspec(naked) void __fastcall TESNPC::SetRace(TESRace *pRace)
 	}
 }
 
-__declspec(naked) NiNode* __fastcall TESObjectCELL::Get3DNode(UInt32 index) const
+__declspec(naked) void __fastcall TESObjectCELL::ToggleNodes(UInt32 nodeBits)
 {
 	__asm
 	{
-		mov		eax, [ecx+0xC4]
-		test	eax, eax
-		jz		done
-		mov		eax, [eax]
-		test	eax, eax
-		jz		done
-		mov		ecx, [eax+0xA0]
-		mov		eax, [ecx+edx*4]
-	done:
+		push	esi
+		push	edi
+		mov		ecx, [ecx+0xC4]
+		mov		ecx, [ecx]
+		mov		esi, [ecx+0xA0]
+		mov		edi, 8
+		ALIGN 16
+	iterHead:
+		mov		ecx, [esi+edi*4]
+		bt		edx, edi
+		setnc	al
+		and		byte ptr [ecx+0x30], 0xFE
+		or		[ecx+0x30], al
+		dec		edi
+		jns		iterHead
+		pop		edi
+		pop		esi
 		retn
-	}
-}
-
-void TESObjectCELL::ToggleNodes(UInt32 nodeBits, UInt8 doHide)
-{
-	if (!renderData || !renderData->masterNode) return;
-	for (auto childIter = renderData->masterNode->m_children.Begin(); childIter; ++childIter)
-	{
-		if (!*childIter) break;
-		if ((nodeBits & 1) && ((childIter->m_flags & 1) != doHide))
-			childIter->m_flags ^= 1;
-		if (!(nodeBits >>= 1)) break;
 	}
 }
 

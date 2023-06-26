@@ -109,8 +109,7 @@ __declspec(naked) void TESObjectREFR::Update3D()
 
 TESObjectREFR *TESObjectREFR::Create(bool bTemp)
 {
-	TESObjectREFR *refr = (TESObjectREFR*)GameHeapAlloc(sizeof(TESObjectREFR));
-	ThisCall(0x55A2F0, refr);
+	TESObjectREFR *refr = ThisCall<TESObjectREFR*>(0x55A2F0, GameHeapAlloc(sizeof(TESObjectREFR)));
 	if (bTemp) ThisCall(0x484490, refr);
 	return refr;
 }
@@ -133,7 +132,7 @@ __declspec(naked) bool TESObjectREFR::GetDisabled() const
 	}
 }
 
-__declspec(naked) ExtraContainerChanges::EntryDataList *TESObjectREFR::GetContainerChangesList() const
+__declspec(naked) ContChangesEntryList *TESObjectREFR::GetContainerChangesList() const
 {
 	__asm
 	{
@@ -183,7 +182,7 @@ __declspec(naked) ContChangesEntry *TESObjectREFR::GetContainerChangesEntry(TESF
 	}
 }
 
-__declspec(naked) SInt32 __fastcall GetFormCount(TESContainer::FormCountList *formCountList, ExtraContainerChanges::EntryDataList *objList, TESForm *form)
+__declspec(naked) SInt32 __fastcall GetFormCount(TESContainer::FormCountList *formCountList, ContChangesEntryList *objList, TESForm *form)
 {
 	__asm
 	{
@@ -384,7 +383,7 @@ __declspec(naked) void TESObjectREFR::AddItemAlt(TESForm *form, UInt32 count, fl
 		jz		eqpIter
 		mov		edx, [eax+4]
 		mov		ecx, [ebp-0x14]
-		call	ExtraContainerChanges::EntryDataList::FindForItem
+		call	ContChangesEntryList::FindForItem
 		test	eax, eax
 		jz		eqpIter
 		push	dword ptr [ebp+0x18]
@@ -676,7 +675,7 @@ __declspec(naked) void TESObjectREFR::SetPos(const NiVector3 &posVector)
 		call	NiNode::ResetCollision
 	doUpdate:
 		push	0
-		push	offset kUpdateParams
+		push	offset kNiUpdateData
 		mov		ecx, edi
 		CALL_EAX(0xA5DD70)
 	done:
@@ -730,7 +729,7 @@ __declspec(naked) void __vectorcall TESObjectREFR::SetAngle(__m128 rotVector, UI
 		call	NiNode::ResetCollision
 		pop		ecx
 		push	0
-		push	offset kUpdateParams
+		push	offset kNiUpdateData
 		CALL_EAX(0xA5DD70)
 	done:
 		MARK_MODIFIED(esi, 2)
@@ -854,7 +853,7 @@ __declspec(naked) void __vectorcall TESObjectREFR::Rotate(__m128 pry)
 		call	NiNode::ResetCollision
 		mov		ecx, [esp]
 		push	0
-		push	offset kUpdateParams
+		push	offset kNiUpdateData
 		CALL_EAX(0xA5DD70)
 	done:
 		add		esp, 0x28
@@ -1132,7 +1131,7 @@ __declspec(naked) void TESObjectREFR::SwapTexture(const char *blockName, const c
 		mov		eax, [ecx+edx*4+0xAC]
 		jmp		doSet
 	noLighting:
-		mov		dword ptr [ecx+0x38], 0
+		and		dword ptr [ecx+0x38], 0
 		lea		eax, [ecx+0x60]
 	doSet:
 		push	eax
@@ -1839,7 +1838,7 @@ __declspec(naked) double __fastcall AdjustDmgByDifficulty(ActorHitData *hitData)
 	}
 }
 
-void Actor::GetHitDataValue(UInt32 valueType, double *result) const
+__declspec(noinline) void __fastcall Actor::GetHitDataValue(UInt32 valueType, double *result) const
 {
 	*result = 0;
 	if (NOT_ACTOR(this) || !baseProcess || (baseProcess->processLevel > 1))
@@ -2035,7 +2034,7 @@ __declspec(naked) void Actor::PushActor(float force, float angle, TESObjectREFR 
 		mov		esi, [esi+0x138]
 		xorps	xmm0, xmm0
 		movaps	[esi+0x500], xmm0
-		mov		dword ptr [esi+0x524], 0
+		and		dword ptr [esi+0x524], 0
 		jmp		done
 	hasForce:
 		mov		eax, [esp+0x10]

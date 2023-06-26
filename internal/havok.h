@@ -89,15 +89,9 @@ struct alignas(16) hkMatrix3x4
 	hkMatrix3x4() {}
 	hkMatrix3x4(float m00, float m10, float m20, float m01, float m11, float m21, float m02, float m12, float m22)
 	{
-		cr[0][0] = m00;
-		cr[0][1] = m10;
-		cr[0][2] = m20;
-		cr[1][0] = m01;
-		cr[1][1] = m11;
-		cr[1][2] = m21;
-		cr[2][0] = m02;
-		cr[2][1] = m12;
-		cr[2][2] = m22;
+		cr[0][0] = m00; cr[0][1] = m10; cr[0][2] = m20;
+		cr[1][0] = m01; cr[1][1] = m11; cr[1][2] = m21;
+		cr[2][0] = m02; cr[2][1] = m12; cr[2][2] = m22;
 	}
 	hkMatrix3x4(const NiMatrix33 &inMatrix) {*this = inMatrix;}
 	hkMatrix3x4(const hkQuaternion &inQuaternion) {*this = inQuaternion;}
@@ -1746,13 +1740,42 @@ public:
 class bhkRagdollController : public hkaRaycastInterface
 {
 public:
-	UInt32				unk004[21];		// 004
-	NiNode				*bip01Node;		// 058
-	UInt32				unk05C[140];	// 05C
-	UInt8				byte28C;		// 28C
-	UInt8				byte28D;		// 28D
-	UInt8				byte28E;		// 28E
-	UInt8				byte28F;		// 28F
-	UInt32				unk290[12];		// 290
+	UInt32						unk004[14];		// 004
+	UInt32						unk03C;			// 03C
+	UInt8						byte040;		// 040
+	UInt8						byte041;		// 041
+	UInt8						byte042;		// 042
+	UInt8						byte043;		// 043
+	UInt32						unk044;			// 044
+	hkReferencedObject			*object048;		// 048
+	UInt32						unk04C;			// 04C
+	UInt8						byte050;		// 050
+	UInt8						byte051;		// 051
+	UInt8						byte052;		// 052
+	UInt8						byte053;		// 053
+	UInt32						unk054;			// 054
+	NiNode						*bip01Node;		// 058
+	UInt32						unk05C[17];		// 05C
+	BSSimpleArray<NiAVObject*>	boneNodesArr;	// 0A0
+	UInt8						byte0B0;		// 0B0
+	UInt8						isLookIK;		// 0B1
+	UInt8						byte0B2;		// 0B2
+	UInt8						byte0B3;		// 0B3
+	UInt32						unk0B4[51];		// 0B4
+	UInt8						byte180;		// 180
+	UInt8						byte181;		// 181
+	UInt8						byte182;		// 182
+	UInt8						byte183;		// 183
+	UInt32						unk184[3];		// 184
+	UInt8						byte190;		// 190
+	UInt8						byte191;		// 191
+	UInt8						byte192;		// 192
+	UInt8						byte193;		// 193
+	UInt32						unk194[62];		// 194
+	UInt8						byte28C;		// 28C
+	UInt8						byte28D;		// 28D
+	UInt8						byte28E;		// 28E
+	UInt8						byte28F;		// 28F
+	UInt32						unk290[12];		// 290
 };
 static_assert(sizeof(bhkRagdollController) == 0x2C0);

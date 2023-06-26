@@ -1,48 +1,25 @@
 #include "nvse/GameData.h"
 
-ModInfo* __fastcall DataHandler::LookupModByName(const char *modName)
+__declspec(naked) ModInfo* __fastcall DataHandler::LookupModByName(const char *modName) const
 {
-	ModList *pModList = &modList;
-	for (UInt32 idx = 0; idx < pModList->loadedModCount; idx++)
-	{
-		ModInfo *pInfo = pModList->loadedMods[idx];
-		if (!StrCompareCI(pInfo->name, modName))
-			return pInfo;
-	}
-	return nullptr;
-}
-
-__declspec(naked) UInt8 __fastcall DataHandler::GetModIndex(const char *modName) const
-{
-	__asm
+	_asm
 	{
 		push	ebx
-		push	esi
-		push	edi
 		lea		ebx, [ecx+0x21C]
-		mov		esi, edx
-		mov		edi, [ebx-4]
+		mov		ecx, edx
+		call	StrHashCI
+		mov		ecx, eax
+		mov		edx, [ebx-4]
 		ALIGN 16
 	iterHead:
-		mov		edx, esi
-		mov		ecx, [ebx]
-		add		ecx, 0x20
-		call	StrCompareCI
-		test	al, al
-		jz		found
+		mov		eax, [ebx]
+		cmp		[eax+0x120], ecx
+		jz		done
 		add		ebx, 4
-		dec		edi
+		dec		edx
 		jnz		iterHead
-		mov		al, 0xFF
-		pop		edi
-		pop		esi
-		pop		ebx
-		retn
-	found:
-		mov		ecx, [ebx]
-		mov		al, [ecx+0x40C]
-		pop		edi
-		pop		esi
+		xor		eax, eax
+	done:
 		pop		ebx
 		retn
 	}
@@ -147,5 +124,24 @@ __declspec(naked) TESObjectCELL* __vectorcall GridCellArray::GetCellAtCoord(__m1
 		xor		eax, eax
 		pop		ebx
 		retn
+	}
+}
+
+void TES::UnloadBufferedExterior(TESObjectCELL *cell)
+{
+	UInt32 bufferSize = *(UInt32*)0x11C3C94;
+	for (UInt32 i = 0; i < bufferSize; i++)
+		if (!exteriorsBuffer[i])
+		{
+			bufferSize = i;
+			break;
+		}			
+	for (UInt32 i = 0; i < bufferSize; i++)
+	{
+		if (exteriorsBuffer[i] != cell)
+			continue;
+		memmove(exteriorsBuffer + i, exteriorsBuffer + i + 1, (bufferSize - i - 1) << 2);
+		ThisCall(0x462290, g_dataHandler, cell);
+		break;
 	}
 }

@@ -1,67 +1,40 @@
 #pragma once
 
-extern ExpressionEvaluatorUtils s_expEvalUtils;
+#define WriteRecord g_serialization.WriteRecord
+#define WriteRecordData g_serialization.WriteRecordData
+#define GetNextRecordInfo g_serialization.GetNextRecordInfo
+#define ReadRecordData g_serialization.ReadRecordData
+#define WriteRecord8 g_serialization.WriteRecord8
+#define WriteRecord16 g_serialization.WriteRecord16
+#define WriteRecord32 g_serialization.WriteRecord32
+#define WriteRecord64 g_serialization.WriteRecord64
+#define ReadRecord8 g_serialization.ReadRecord8
+#define ReadRecord16 g_serialization.ReadRecord16
+#define ReadRecord32 g_serialization.ReadRecord32
+#define ReadRecord64 g_serialization.ReadRecord64
 
-typedef bool (*_WriteRecord)(UInt32 type, UInt32 version, const void *buffer, UInt32 length);
-extern _WriteRecord WriteRecord;
-typedef bool (*_WriteRecordData)(const void *buffer, UInt32 length);
-extern _WriteRecordData WriteRecordData;
-typedef bool (*_GetNextRecordInfo)(UInt32 *type, UInt32 *version, UInt32 *length);
-extern _GetNextRecordInfo GetNextRecordInfo;
-typedef UInt32 (*_ReadRecordData)(void *buffer, UInt32 length);
-extern _ReadRecordData ReadRecordData;
-typedef void (*_WriteRecord8)(UInt8 inData);
-extern _WriteRecord8 WriteRecord8;
-typedef void (*_WriteRecord16)(UInt16 inData);
-extern _WriteRecord16 WriteRecord16;
-typedef void (*_WriteRecord32)(UInt32 inData);
-extern _WriteRecord32 WriteRecord32;
-typedef void (*_WriteRecord64)(const void *inData);
-extern _WriteRecord64 WriteRecord64;
-typedef UInt8 (*_ReadRecord8)();
-extern _ReadRecord8 ReadRecord8;
-typedef UInt16 (*_ReadRecord16)();
-extern _ReadRecord16 ReadRecord16;
-typedef UInt32 (*_ReadRecord32)();
-extern _ReadRecord32 ReadRecord32;
-typedef void (*_ReadRecord64)(void *outData);
-extern _ReadRecord64 ReadRecord64;
-typedef CommandInfo* (*_GetCmdByOpcode)(UInt32 opcode);
-extern _GetCmdByOpcode GetCmdByOpcode;
-typedef const PluginInfo* (*_GetPluginInfoByName)(const char *pluginName);
-extern _GetPluginInfoByName GetPluginInfoByName;
-typedef const char* (*_GetStringVar)(UInt32 stringID);
-extern _GetStringVar GetStringVar;
-typedef bool (*_AssignString)(COMMAND_ARGS, const char *newValue);
-extern _AssignString AssignString;
-typedef NVSEArrayVar* (*_CreateArray)(const NVSEArrayElement *data, UInt32 size, Script *callingScript);
-extern _CreateArray CreateArray;
-typedef NVSEArrayVar* (*_CreateStringMap)(const char **keys, const NVSEArrayElement *values, UInt32 size, Script *callingScript);
-extern _CreateStringMap CreateStringMap;
-typedef void (*_SetElement)(NVSEArrayVar *arr, const NVSEArrayElement &key, const NVSEArrayElement &value);
-extern _SetElement SetElement;
-typedef void (*_AppendElement)(NVSEArrayVar *arr, const NVSEArrayElement &value);
-extern _AppendElement AppendElement;
-typedef UInt32 (*_GetArraySize)(NVSEArrayVar *arr);
-extern _GetArraySize GetArraySize;
-typedef NVSEArrayVar* (*_LookupArrayByID)(UInt32 id);
-extern _LookupArrayByID LookupArrayByID;
-typedef bool (*_GetElement)(NVSEArrayVar *arr, const NVSEArrayElement &key, NVSEArrayElement &outElement);
-extern _GetElement GetElement;
-typedef bool (*_GetElements)(NVSEArrayVar *arr, NVSEArrayElement *elements, NVSEArrayElement *keys);
-extern _GetElements GetElements;
-typedef int (*_GetContainerType)(NVSEArrayVar *arr);
-extern _GetContainerType GetContainerType;
-typedef bool (*_ArrayHasKey)(NVSEArrayVar *arr, const NVSEArrayElement &key);
-extern _ArrayHasKey ArrayHasKey;
-typedef bool (*_ExtractArgsEx)(COMMAND_ARGS_EX, ...);
-extern _ExtractArgsEx ExtractArgsEx;
-typedef bool (*_ExtractFormatStringArgs)(UInt32 fmtStringPos, char *buffer, COMMAND_ARGS_EX, UInt32 maxParams, ...);
-extern _ExtractFormatStringArgs ExtractFormatStringArgs;
-typedef bool (*_CallFunction)(Script *funcScript, TESObjectREFR *callingObj, UInt8 numArgs, ...);
-extern _CallFunction CallFunction;
-//typedef int (*_GetFunctionParams)(Script *funcScript, UInt8 *paramTypesOut);
-//extern _GetFunctionParams GetFunctionParams;
+#define GetCmdByOpcode g_commandTbl.GetByOpcode
+#define GetPluginInfoByName g_commandTbl.GetPluginInfoByName
+
+#define GetStringVar g_stringVar.GetString
+#define AssignString g_stringVar.Assign
+
+#define CreateArray g_arrayVar.CreateArray
+#define CreateMap g_arrayVar.CreateMap
+#define CreateStringMap g_arrayVar.CreateStringMap
+#define SetElement g_arrayVar.SetElement
+#define AppendElement g_arrayVar.AppendElement
+#define GetArraySize g_arrayVar.GetArraySize
+#define LookupArrayByID g_arrayVar.LookupArrayByID
+#define GetElement g_arrayVar.GetElement
+#define GetElements g_arrayVar.GetElements
+#define GetContainerType g_arrayVar.GetContainerType
+#define ArrayHasKey g_arrayVar.ArrayHasKey
+
+#define ExtractArgsEx g_script.ExtractArgsEx
+#define ExtractFormatStringArgs g_script.ExtractFormatStringArgs
+#define CallFunction g_script.CallFunctionAlt
+
 typedef void (*_CaptureLambdaVars)(Script* scriptLambda);
 extern _CaptureLambdaVars CaptureLambdaVars;
 typedef void (*_UncaptureLambdaVars)(Script* scriptLambda);
@@ -88,8 +61,7 @@ namespace GameGlobals
 	__forceinline bool *GamePadRumble() {return (bool*)0x11E0854;}
 	__forceinline UInt32 TickCount() {return *(UInt32*)0x11F63A8;}
 	__forceinline tList<Archive> *ArchivesList() {return *(tList<Archive>**)0x11F8160;}
-	__forceinline LightCS *SceneLightsLock() {return (LightCS*)0x11F9EA0;}
-	__forceinline UInt32 *LightingPasses() {return (UInt32*)0x11F91D8;}
+	__forceinline LightCS *SceneLightsLock() {return (LightCS*)SCENE_LIGHTS_CS;}
 	__forceinline tList<ListBox<int>> *ActiveListBoxes() {return (tList<ListBox<int>>*)0x11D8B54;}
 	__forceinline tList<GradualSetFloat> *QueuedGradualSetFloat() {return (tList<GradualSetFloat>*)0x11F3348;}
 	__forceinline RadioEntry *PipboyRadio() {return *(RadioEntry**)0x11DD42C;}
@@ -159,18 +131,19 @@ __forceinline void *NiDeallocator(void *blockPtr, UInt32 size)
 }
 
 TESForm* __stdcall LookupFormByRefID(UInt32 refID);
-bool __stdcall HasChangeData(UInt32 refID);
+UInt32 __stdcall HasChangeData(UInt32 refID);
 bool __fastcall GetResolvedModIndex(UInt8 *pModIdx);
-UInt32 __fastcall GetResolvedRefID(UInt32 refID);
+UInt32 __fastcall GetResolvedRefID(UInt32 *refID);
 
 enum
 {
-	kChangedFlag_AuxVars =		1 << 0,
-	kChangedFlag_RefMaps =		1 << 1,
-	kChangedFlag_LinkedRefs =	1 << 2,
-	kChangedFlag_NPCPerks =		1 << 3,
+	kChangedFlag_AuxVars =		1,
+	kChangedFlag_RefMaps =		2,
+	kChangedFlag_ExtraData =	4,
+	kChangedFlag_LinkedRefs =	8,
+	kChangedFlag_NPCPerks =		0x10,
 
-	kChangedFlag_All =			kChangedFlag_AuxVars | kChangedFlag_RefMaps | kChangedFlag_LinkedRefs | kChangedFlag_NPCPerks,
+	kChangedFlag_All =			kChangedFlag_AuxVars | kChangedFlag_RefMaps | kChangedFlag_ExtraData | kChangedFlag_LinkedRefs | kChangedFlag_NPCPerks,
 
 	kSerializedFlag_NoHardcoreTracking =	1 << 0,
 };
@@ -258,7 +231,7 @@ struct InventoryItemData
 	InventoryItemData(SInt32 _count, ContChangesEntry *_entry) : count(_count), entry(_entry) {}
 };
 
-typedef UnorderedMap<TESForm*, InventoryItemData, 0x40> InventoryItemsMap;
+typedef Map<TESForm*, InventoryItemData, 0x40> InventoryItemsMap;
 InventoryItemsMap *GetInventoryItemsMap();
 
 bool GetInventoryItems(TESObjectREFR *refr, UInt8 typeID, InventoryItemsMap *invItemsMap);
@@ -343,8 +316,6 @@ struct AppearanceUndo
 };
 
 extern TempObject<UnorderedMap<TESNPC*, AppearanceUndo*>> s_appearanceUndoMap;
-
-extern TempObject<UnorderedSet<TESGlobal*>> s_resolvedGlobals;
 
 hkpWorld *GethkpWorld();
 
@@ -436,17 +407,18 @@ public:
 	__declspec(noinline) void operator=(const char *value)
 	{
 		type = 4;
-		length = StrLen(value);
-		if (length)
+		if (length = StrLen(value))
 		{
-			UInt16 size = length + 1;
-			if (alloc < size)
+			if (length > 0x1FFF)
+				length = 0x1FFF;
+			if (alloc <= length)
 			{
 				if (alloc) Pool_CFree(str, alloc);
-				alloc = (size + 0x10) & 0xFFF0;
+				alloc = (length + 0x11) & 0xFFF0;
 				str = Pool_CAlloc(alloc);
 			}
-			COPY_BYTES(str, value, size);
+			COPY_BYTES(str, value, length);
+			str[length] = 0;
 		}
 		else if (alloc)
 			*str = 0;
@@ -477,7 +449,7 @@ public:
 		}
 		if (type == 2)
 		{
-			refID = GetResolvedRefID(*(UInt32*)bufPos);
+			refID = GetResolvedRefID((UInt32*)bufPos);
 			return 4;
 		}
 		length = *(UInt16*)bufPos;
@@ -521,6 +493,13 @@ extern TempObject<RefMapModsMap> s_refMapArraysPerm, s_refMapArraysTemp;
 UInt32 __fastcall GetSubjectID(TESForm *form, TESObjectREFR *thisObj);
 
 #define JIP_VARS_CS 1
+#define JIP_XDATA_CS 1
+
+#if JIP_XDATA_CS
+#define XDATA_CS ScopedLightCS cs((LightCS*)EXTRA_DATA_CS);
+#else
+#define XDATA_CS
+#endif
 
 struct AuxVarInfo
 {
@@ -782,11 +761,8 @@ struct ArrayData
 		size = GetArraySize(srcArr);
 		if (size)
 		{
-			UInt32 alloc = size * sizeof(ArrayElementR);
-			if (!isPacked) alloc *= 2;
-			vals = (ArrayElementR*)AuxBuffer::Get(2, alloc);
+			vals = AuxBuffer::Get<ArrayElementR>(2, isPacked ? size : (size << 1));
 			keys = isPacked ? nullptr : (vals + size);
-			ZERO_BYTES(vals, alloc);
 			if (!GetElements(srcArr, vals, keys))
 				size = 0;
 		}
@@ -823,6 +799,7 @@ struct InventoryRef
 
 	SInt32 GetCount() {return entry->countDelta;}
 	ExtraDataList *CreateExtraData();
+	ExtraDataList* __fastcall SplitFromStack(SInt32 maxStack = 1);
 };
 
 typedef TESObjectREFR* (__stdcall *_InventoryRefCreate)(TESObjectREFR *container, TESForm *itemForm, SInt32 countDelta, ExtraDataList *xData);
@@ -831,8 +808,6 @@ typedef InventoryRef* (*_InventoryRefGetForID)(UInt32 refID);
 extern _InventoryRefGetForID InventoryRefGetForID;
 
 TESObjectREFR* __fastcall CreateRefForStack(TESObjectREFR *container, ContChangesEntry *menuEntry);
-
-ExtraDataList* __fastcall SplitFromStack(ContChangesEntry *entry, ExtraDataList *xDataIn);
 
 TESObjectREFR* __fastcall GetEquippedItemRef(Actor *actor, UInt32 slotIndex);
 
@@ -853,25 +828,29 @@ struct AnimGroupClassify
 };
 extern const AnimGroupClassify kAnimGroupClassify[];
 
-enum ScriptRunOn
-{
-	kRunOn_LoadGame =		'lg',
-	kRunOn_ExitToMainMenu =	'mx',
-	kRunOn_NewGame =		'ng',
-	kRunOn_RestartGame =	'rg',
-	kRunOn_SaveGame =		'sg',
-	kRunOn_ExitGame =		'xg'
-};
-
 extern TempObject<UnorderedMap<char*, Script*>> s_cachedScripts;
 
 namespace JIPScriptRunner
 {
-	void Init();
-	void RunScripts(UInt16 type);
+	enum ScriptRunOn : UInt16
+	{
+		kRunOn_Invalid =		0,
+		kRunOn_LoadGame =		'lg',
+		kRunOn_ExitToMainMenu =	'mx',
+		kRunOn_NewGame =		'ng',
+		kRunOn_LoadOrNewGame =	'nl',
+		kRunOn_RestartGame =	'rg',
+		kRunOn_SaveGame =		'sg',
+		kRunOn_ExitGame =		'xg'
+	};
 
-	bool __fastcall RunScript(Script *script, int EDX, TESObjectREFR *callingRef);
-	bool __fastcall RunScriptSource(char *scrSource);
+	void Init();
+	void RunScripts(ScriptRunOn runOn1, ScriptRunOn runOn2 = kRunOn_Invalid);
+
+	void __fastcall RunScript(Script *script, int EDX, TESObjectREFR *callingRef);
+	bool __fastcall RunScriptSource(char *scrSource, const char *scrName, bool capture = false);
+
+	void __fastcall LogCompileError(String &errorStr);
 };
 
 extern TempObject<UnorderedMap<const char*, NiCamera*>> s_extraCamerasMap;
@@ -885,8 +864,6 @@ extern bool s_mapMenuSkipSetXY;
 void RefreshItemListBox();
 
 bool IsConsoleOpen();
-
-void SuppressConsoleOutput();
 
 void __fastcall DoConsolePrint(double *result);
 

@@ -178,7 +178,7 @@ void __fastcall SetScriptDisabled(Script *script, bool disable)
 	if (disable != !script->info.dataLength)
 	{
 		script->info.dataLength = disable ? 0 : script->GetDataLength();
-		if (script->info.type != 1) HOOK_MOD(MergeEventMask, disable);
+		if (!script->IsQuestScript()) HOOK_MOD(MergeEventMask, disable);
 	}
 }
 
@@ -368,11 +368,17 @@ bool Cmd_RunScriptSnippet_Execute(COMMAND_ARGS)
 	if (ExtractFormatStringArgs(1, buffer, EXTRACT_ARGS_EX, kCommandInfo_RunScriptSnippet.numParams, &delayTime))
 	{
 		ReplaceChr(buffer, '\n', '\r');
-		Script *pScript = Script::Create(buffer);
-		TESObjectREFR *callingRef = thisObj ? thisObj : g_thePlayer;
-		if (delayTime)
-			MainLoopAddCallbackArgsEx(JIPScriptRunner::RunScript, pScript, 1, delayTime, 1, callingRef);
-		else JIPScriptRunner::RunScript(pScript, 0, callingRef);
+		if (Script *pScript = Script::Create(buffer, "RunScriptSnippet"))
+		{
+			TESObjectREFR *callingRef = thisObj ? thisObj : g_thePlayer;
+			if (delayTime)
+				MainLoopAddCallbackArgsEx(JIPScriptRunner::RunScript, pScript, 1, delayTime, 1, callingRef);
+			else
+			{
+				JIPScriptRunner::RunScript(pScript, 0, callingRef);
+				pScript->Destroy(1);
+			}
+		}
 	}
 	return true;
 }
@@ -381,9 +387,9 @@ bool Cmd_ScriptWait_Execute(COMMAND_ARGS)
 {
 	if (_ReturnAddress() != (void*)0x5E234B) return true;
 	UInt32 iterNum;
-	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &iterNum) || !scriptObj->refID || (scriptObj->info.type > 1) || !iterNum)
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &iterNum) || !scriptObj->refID || scriptObj->IsMagicScript() || !iterNum)
 		return true;
-	TESForm *owner = scriptObj->info.type ? scriptObj->quest : (TESForm*)thisObj;
+	TESForm *owner = scriptObj->IsQuestScript() ? scriptObj->quest : (TESForm*)thisObj;
 	if (!owner) return true;
 	*opcodeOffsetPtr += *(UInt16*)(scriptData + *opcodeOffsetPtr - 2);
 	ScriptBlockIterator blockIter(scriptData, *opcodeOffsetPtr);
@@ -553,15 +559,27 @@ bool Cmd_RunBatchScript_Execute(COMMAND_ARGS)
 	char filePath[0x80];
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &filePath))
 	{
+		ReplaceChr(filePath, '/', '\\');
 		Script **cachedScript;
 		if (s_cachedScripts->InsertKey(filePath, &cachedScript))
 		{
-			char *buffer = GetStrArgBuffer();
-			if (FileToBuffer(filePath, buffer, STR_BUFFER_SIZE - 1))
-				*cachedScript = Script::Create(buffer);
+			*cachedScript = nullptr;
+			char *fileName = FindChrR(filePath, '\\');
+			if (!fileName) fileName = filePath;
+			if (char *buffer = GetStrArgBuffer(); FileToBuffer(filePath, buffer, STR_BUFFER_SIZE - 1))
+				if (Script *pScript = Script::Create(buffer, fileName))
+				{
+					*cachedScript = pScript;
+					CaptureLambdaVars(pScript);
+					if (UInt32 modIdx = scriptObj->GetOverridingModIdx(); modIdx < 0xFF)
+						pScript->mods.Init(g_dataHandler->GetNthModInfo(modIdx));
+				}
 		}
-		if (*cachedScript && JIPScriptRunner::RunScript(*cachedScript, 1, thisObj ? thisObj : g_thePlayer))
+		if (*cachedScript)
+		{
+			JIPScriptRunner::RunScript(*cachedScript, 0, thisObj ? thisObj : g_thePlayer);
 			*result = 1;
+		}
 	}
 	return true;
 }
@@ -569,12 +587,7 @@ bool Cmd_RunBatchScript_Execute(COMMAND_ARGS)
 bool Cmd_ExecuteScript_Execute(COMMAND_ARGS)
 {
 	ExtraScript *xScript = GetExtraType(&thisObj->extraDataList, ExtraScript);
-	if (xScript)
-	{
-		Script *pScript = xScript->script;
-		ScriptLocals *pEventList = xScript->eventList;
-		if (pScript && pEventList)
-			pScript->Execute(thisObj, pEventList, NULL, false);
-	}
+	if (xScript && xScript->script && xScript->eventList)
+		xScript->script->Execute(thisObj, xScript->eventList, nullptr, false);
 	return true;
 }

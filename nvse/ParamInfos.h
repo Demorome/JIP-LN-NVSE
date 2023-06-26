@@ -118,6 +118,18 @@ constexpr ParamInfo kParams_OneOptionalBoundObject[] =
 {
 	{"Bound Object", kParamType_BoundObject, 1}
 };
+
+constexpr ParamInfo kParams_OneBoundObject_OneOptionalBoundObject[] =
+{
+	{"Bound Object", kParamType_BoundObject, 0},
+	{"Bound Object", kParamType_BoundObject, 1}
+};
+
+constexpr ParamInfo kParams_OneBoundObject_OneInt[] =
+{
+	{"Bound Object", kParamType_BoundObject, 0},
+	{"Integer", kParamType_Integer, 0}
+};
  
 constexpr ParamInfo kParams_OneInt_OneOptionalBoundObject[] =
 {
@@ -1799,4 +1811,24 @@ constexpr ParamInfo kParams_ThreeScriptVars_ThreeOptionalScriptVars[] =
 	{"Variable", kParamType_ScriptVariable, 1},
 	{"Variable", kParamType_ScriptVariable, 1},
 	{"Variable", kParamType_ScriptVariable, 1}
+};
+
+constexpr ParamInfo kParams_NVSE_OneNum_OneOptionalNum[] =
+{
+	{"Integer", kNVSEParamType_Number, 0},
+	{"Integer", kNVSEParamType_Number, 1}
+};
+
+constexpr ParamInfo kParams_NVSE_OneOptionalNum_OneOptionalBasicType[] =
+{
+	{"Integer", kNVSEParamType_Number, 1},
+	{"Basic Type", kNVSEParamType_BasicType, 1}
+};
+
+constexpr ParamInfo kParams_OneInt_ThreeOptionalInts[] =
+{
+	{"Integer", kParamType_Integer, 0},
+	{"Integer", kParamType_Integer, 1},
+	{"Integer", kParamType_Integer, 1},
+	{"Integer", kParamType_Integer, 1}
 };
