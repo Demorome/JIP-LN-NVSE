@@ -55,7 +55,26 @@ alignas(16) const UInt32 kStringMasks[] =
 	PS_DUP_4(0x20202020)
 };
 
+UInt32 g_TLSIndex;
 memcpy_t MemCopy = memcpy;
+
+__declspec(naked) void* __stdcall Game_DoHeapAlloc(size_t size)
+{
+	__asm
+	{
+		mov		ecx, GAME_HEAP
+		JMP_EAX(0xAA3E40)
+	}
+}
+
+__declspec(naked) void __stdcall Game_HeapFree(void *ptr)
+{
+	__asm
+	{
+		mov		ecx, GAME_HEAP
+		JMP_EAX(0xAA4060)
+	}
+}
 
 __declspec(naked) PrimitiveCS *PrimitiveCS::Enter()
 {
@@ -622,7 +641,7 @@ __declspec(naked) float __vectorcall Length_V4(__m128 inPS)
 		haddps	xmm0, xmm1
 		comiss	xmm0, xmm1
 		jz		done
-		movaps	xmm1, xmm0
+		movq	xmm1, xmm0
 		rsqrtss	xmm2, xmm0
 		mulss	xmm1, xmm2
 		mulss	xmm1, xmm2
@@ -712,7 +731,7 @@ __declspec(naked) void __fastcall NiReleaseObject(NiRefObject *toRelease)
 	}
 }
 
-__declspec(naked) NiRefObject** __stdcall NiReleaseAddRef(void *toRelease, NiRefObject *toAdd)
+__declspec(naked) NiRefObject** __stdcall NiReplaceObject(void *toRelease, NiRefObject *toAdd)
 {
 	__asm
 	{
@@ -823,7 +842,21 @@ __declspec(naked) bool __fastcall MemCmp(const void *ptr1, const void *ptr2, UIn
 		mov		edi, edx
 		mov		ecx, [esp+0xC]
 		shr		ecx, 2
+		jz		cmpEnd
 		repe cmpsd
+		jnz		done
+	cmpEnd:
+		and		dword ptr [esp+0xC], 3
+		jz		done
+		or		eax, 0xFFFFFFFF
+		mov		ecx, [esp+0xC]
+		shl		ecx, 3
+		shl		eax, cl
+		mov		ecx, [esi]
+		or		ecx, eax
+		or		eax, [edi]
+		xor		eax, ecx
+	done:
 		setz	al
 		pop		edi
 		pop		esi
@@ -1481,7 +1514,7 @@ __declspec(naked) char* __fastcall CopyCString(const char *src)
 		inc		eax
 		push	eax
 		push	eax
-		GAME_HEAP_ALLOC
+		call	Game_DoHeapAlloc
 		pop		ecx
 		push	edi
 		mov		edi, eax
@@ -1979,8 +2012,7 @@ DString& DString::operator+=(char chr)
 
 DString& DString::operator+=(const char *other)
 {
-	UInt16 otherLen = StrLen(other);
-	if (otherLen)
+	if (UInt16 otherLen = StrLen(other))
 	{
 		UInt16 newLen = length + otherLen;
 		Reserve(newLen);
@@ -2027,8 +2059,7 @@ DString& DString::Insert(UInt16 index, const char *other)
 {
 	if (index >= length)
 		return this->operator+=(other);
-	UInt16 otherLen = StrLen(other);
-	if (otherLen)
+	if (UInt16 otherLen = StrLen(other))
 	{
 		UInt16 newLen = length + otherLen;
 		Reserve(newLen);
@@ -2077,8 +2108,7 @@ DString& DString::Replace(UInt16 bgnIdx, const char *other)
 {
 	if (bgnIdx >= length)
 		return this->operator+=(other);
-	UInt16 otLen = StrLen(other);
-	if (otLen)
+	if (UInt16 otLen = StrLen(other))
 	{
 		UInt16 endIdx = bgnIdx + otLen;
 		if (endIdx > length)
@@ -2200,6 +2230,22 @@ __declspec(noinline) void XString::InitFromBuffer(const char *inStr, UInt32 len)
 	str[length] = 0;
 }
 
+void XString::operator=(const XString &other)
+{
+	if (length = other.length)
+	{
+		if (alloc <= length)
+		{
+			if (str) Pool_CFree(str, alloc);
+			alloc = (length + 0x11) & 0xFFF0;
+			str = Pool_CAlloc(alloc);
+		}
+		COPY_BYTES(str, other.str, length + 1);
+	}
+	else if (str)
+		*str = 0;
+}
+
 void XString::operator=(const char *other)
 {
 	if (length = StrLen(other))
@@ -2234,8 +2280,7 @@ FileStream::FileStream(const char *filePath)
 
 FileStream::FileStream(const char *filePath, UInt32 inOffset)
 {
-	theFile = fopen(filePath, "rb");
-	if (theFile)
+	if (theFile = fopen(filePath, "rb"))
 	{
 		fseek(theFile, 0, SEEK_END);
 		if (ftell(theFile) < inOffset)
@@ -2283,6 +2328,19 @@ bool FileStream::OpenWrite(char *filePath, bool append)
 	else MakeAllDirs(filePath);
 	theFile = fopen(filePath, "wb");
 	return theFile != nullptr;
+}
+
+bool FileStream::OpenWriteEx(char *filePath, char *buffer, size_t buffSize)
+{
+	if (theFile) fclose(theFile);
+	MakeAllDirs(filePath);
+	theFile = fopen(filePath, "wb");
+	if (theFile)
+	{
+		setvbuf(theFile, buffer, _IOFBF, buffSize);
+		return true;
+	}
+	return false;
 }
 
 UInt32 FileStream::GetLength() const
@@ -2405,7 +2463,8 @@ void PrintDebug(const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
-	s_debug->FmtMessage(fmt, args);
+	auto theLog = *s_debug ? *s_debug : *s_log;
+	theLog->FmtMessage(fmt, args);
 	va_end(args);
 }
 
@@ -2466,28 +2525,22 @@ __declspec(naked) LineIterator::LineIterator(const char *filePath, char *buffer)
 
 __declspec(noinline) UInt32 __fastcall FileToBuffer(const char *filePath, char *buffer, UInt32 maxLen)
 {
-	FileStream srcFile(filePath);
-	if (!srcFile) return 0;
-	UInt32 length = srcFile.GetLength();
-	if (length)
-	{
-		if (length > maxLen)
-			length = maxLen;
-		srcFile.ReadBuf(buffer, length);
-		buffer[length] = 0;
-	}
-	return length;
+	if (FileStream srcFile(filePath); srcFile)
+		if (UInt32 length = srcFile.GetLength())
+		{
+			if (length > maxLen)
+				length = maxLen;
+			srcFile.ReadBuf(buffer, length);
+			buffer[length] = 0;
+			return length;
+		}
+	return 0;
 }
 
 __declspec(naked) void __stdcall SafeWrite8(UInt32 addr, UInt32 data)
 {
 	__asm
 	{
-#if LOG_HOOKS
-		push	1
-		push	dword ptr [esp+8]
-		call	StoreOriginalData
-#endif
 		push	ecx
 		push	esp
 		push	PAGE_EXECUTE_READWRITE
@@ -2516,11 +2569,6 @@ __declspec(naked) void __stdcall SafeWrite16(UInt32 addr, UInt32 data)
 {
 	__asm
 	{
-#if LOG_HOOKS
-		push	2
-		push	dword ptr [esp+8]
-		call	StoreOriginalData
-#endif
 		push	ecx
 		push	esp
 		push	PAGE_EXECUTE_READWRITE
@@ -2549,11 +2597,6 @@ __declspec(naked) void __stdcall SafeWrite32(UInt32 addr, UInt32 data)
 {
 	__asm
 	{
-#if LOG_HOOKS
-		push	4
-		push	dword ptr [esp+8]
-		call	StoreOriginalData
-#endif
 		push	ecx
 		push	esp
 		push	PAGE_EXECUTE_READWRITE
@@ -2582,11 +2625,6 @@ __declspec(naked) void __stdcall SafeWriteBuf(UInt32 addr, const void *data, UIn
 {
 	__asm
 	{
-#if LOG_HOOKS
-		push	dword ptr [esp+0xC]
-		push	dword ptr [esp+8]
-		call	StoreOriginalData
-#endif
 		push	ecx
 		push	esp
 		push	PAGE_EXECUTE_READWRITE
@@ -2620,11 +2658,6 @@ __declspec(naked) void __stdcall WriteRelJump(UInt32 jumpSrc, UInt32 jumpTgt)
 {
 	__asm
 	{
-#if LOG_HOOKS
-		push	5
-		push	dword ptr [esp+8]
-		call	StoreOriginalData
-#endif
 		push	ecx
 		push	esp
 		push	PAGE_EXECUTE_READWRITE
@@ -2656,11 +2689,6 @@ __declspec(naked) void __stdcall WriteRelCall(UInt32 jumpSrc, UInt32 jumpTgt)
 {
 	__asm
 	{
-#if LOG_HOOKS
-		push	5
-		push	dword ptr [esp+8]
-		call	StoreOriginalData
-#endif
 		push	ecx
 		push	esp
 		push	PAGE_EXECUTE_READWRITE
@@ -2692,11 +2720,6 @@ __declspec(naked) void __stdcall WritePushRetRelJump(UInt32 baseAddr, UInt32 ret
 {
 	__asm
 	{
-#if LOG_HOOKS
-		push	0xA
-		push	dword ptr [esp+8]
-		call	StoreOriginalData
-#endif
 		push	ecx
 		push	esp
 		push	PAGE_EXECUTE_READWRITE

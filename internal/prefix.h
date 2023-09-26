@@ -11,19 +11,11 @@
 #include <direct.h>
 #include <string>
 #include <regex>
+#include <bit>
 #include <type_traits>
 #include <initializer_list>
 #include <intrin.h>
 #include <immintrin.h>
-
-typedef unsigned char UInt8;
-typedef unsigned short UInt16;
-typedef unsigned long UInt32;
-typedef unsigned long long UInt64;
-typedef signed char SInt8;
-typedef signed short SInt16;
-typedef signed long SInt32;
-typedef signed long long SInt64;
 
 class BaseFormComponent;
 class TESFullName;
@@ -318,6 +310,7 @@ struct ModInfo;
 struct ParamInfo;
 struct CommandInfo;
 struct PluginInfo;
+class NiFile;
 class BSFile;
 class QueuedFile;
 struct KFModel;
@@ -375,7 +368,7 @@ class NiSourceCubeMap;
 class NiRenderedCubeMap;
 class NiDepthStencilBuffer;
 class NiRenderTargetGroup;
-class RenderTarget;
+class BSRenderedTexture;
 class NiGeometryData;
 class NiParticles;
 class NiLines;
@@ -389,10 +382,14 @@ class BSResizableTriShape;
 class BSFaceGenNiNode;
 class BSShaderAccumulator;
 class BSFaceGenAnimationData;
+class NiDX9Renderer;
 class Ni2DBuffer;
 class NiDX92DBufferData;
 class IDirect3DBaseTexture9;
-
+class ImageSpaceShaderParam;
+class ImageSpaceTexture;
+struct ImageSpaceEffectParam;
+class ImageSpaceManager;
 class hkReferencedObject;
 class hkpWorldObject;
 class bhkRefObject;
@@ -451,9 +448,11 @@ struct hkQuaternion;
 struct hkMatrix3x4;
 
 #include "internal/version.h"
+#include "internal/base_defs.h"
 #include "internal/class_vtbls.h"
+#include "internal/settings_enum.h"
+#include "internal/misc_enums.h"
 #include "internal/memory_pool.h"
-#include "internal/misc_consts.h"
 #include "internal/utility.h"
 #include "internal/containers.h"
 #include "internal/Ni_types.h"

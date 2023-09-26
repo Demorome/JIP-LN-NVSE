@@ -71,7 +71,7 @@ struct ModInfo		// referred to by game as TESFile
 	};
 
 	tList<UInt32>						unkList;			// 000 treated as ModInfo during InitializeForm, looks to be a linked list of modInfo
-	UInt32 /*NiTPointerMap<TESFile*>*/	* pointerMap;		// 008
+	UInt32/*NiTPtrMap<TESFile*>*/		*pointerMap;		// 008
 	UInt32								unk00C;				// 00C
 	BSFile*								unkFile;			// 010
 	UInt32								unk014;				// 014 
@@ -133,6 +133,30 @@ struct ModInfo		// referred to by game as TESFile
 };
 static_assert(sizeof(WIN32_FIND_DATA) == 0x140);
 static_assert(sizeof(ModInfo) == 0x42C);
+
+struct Timer
+{
+	UInt8		disableCounter;			// 00
+	UInt8		pad01[3];				// 01
+	float		fpsClamp;				// 04
+	float		fpsClampRemainder;		// 08
+	float		secondsPassed;			// 0C
+	float		lastSecondsPassed;		// 10
+	UInt32		msPassed;				// 14
+	UInt32		tickCount;				// 18
+	UInt8		isChangeTimeMultSlowly;	// 1C
+	UInt8		byte1D;					// 1D
+	UInt8		pad1E[2];				// 1E
+};
+
+struct TimeGlobal : Timer
+{
+	float		flt20;
+	float		flt24;
+	float		flt28;
+
+	static TimeGlobal *Get() {return (TimeGlobal*)0x11F6394;}
+};
 
 struct ModList
 {
@@ -257,6 +281,8 @@ public:
 	{
 		return ThisCall<UInt32>(0x4603B0, this, pForm);
 	}
+
+	void DecompileModScripts(UInt8 modIdx, UInt8 typeMask = 0x1F);
 };
 static_assert(sizeof(DataHandler) == 0x63C);
 
@@ -538,7 +564,7 @@ public:
 	{
 		ThisCall(0x63C8F0, this, climate, immediate);
 	}
-	bool GetIsRaining();
+	bool GetIsRaining() const;
 };
 static_assert(sizeof(Sky) == 0x138);
 extern Sky *g_currentSky;
@@ -602,13 +628,13 @@ extern GridCellArray *g_gridCellArray;;
 class LoadedAreaBound : public NiRefObject
 {
 public:
-	bhkPhantom							*phantoms[6];	// 08	Seen bhkAabbPhantom
-	TESObjectCELL						*cell;			// 20
-	NiTMapBase<bhkRigidBody*, UInt32>	boundsMap;		// 24
-	float								flt34;			// 34
-	float								flt38;			// 38
-	float								flt3C;			// 3C
-	float								flt40;			// 40
+	bhkPhantom						*phantoms[6];	// 08	Seen bhkAabbPhantom
+	TESObjectCELL					*cell;			// 20
+	NiTMap<bhkRigidBody*, UInt16>	boundsMap;		// 24
+	float							flt34;			// 34	Init'd to 20.0
+	float							flt38;			// 38	Init'd to 600.0
+	float							flt3C;			// 3C	Init'd to 1000.0
+	float							flt40;			// 40	Init'd to 0.3
 
 	__forceinline void GetGroundPos(TESObjectREFR *refr, NiVector3 *currPos, NiVector3 *outPos)
 	{
@@ -620,68 +646,70 @@ static_assert(sizeof(LoadedAreaBound) == 0x44);
 // A0
 struct WaterSurfaceManager
 {
+	struct WadingWaterData;
+
 	// B0 c'tor @ 0x4ED5F0
 	struct WaterGroup
 	{
-		TESWaterForm			*waterForm;		// 00
-		NiVector4				vector04;		// 04
-		NiVector4				vector14;		// 14
-		DList<TESObjectREFR>	waterPlanes;	// 24
-		DList<void>				list30;			// 30
-		DList<void>				list3C;			// 3C
-		DList<void>				list48;			// 48
-		NiAVObject				*object54;		// 54
-		NiAVObject				*object58;		// 58
-		UInt8					byte5C;			// 5C
-		UInt8					byte5D;			// 5D
-		UInt8					byte5E;			// 5E
-		UInt8					byte5F;			// 5F
-		UInt8					byte60;			// 60
-		UInt8					pad61[3];		// 61
-		DList<void>				list64;			// 64
-		DList<void>				list70;			// 70
-		DList<void>				list7C;			// 7C
-		DList<void>				list88;			// 88
-		NiObject				*object94;		// 94
-		NiObject				*object98;		// 98
-		UInt32					unk9C;			// 9C
-		UInt32					unkA0;			// A0
-		NiObject				*objectA4;		// A4
-		NiObject				*objectA8;		// A8
-		UInt32					unkAC;			// AC
+		TESWaterForm			*waterForm;			// 00
+		NiPlane					plane04;			// 04
+		NiPlane					plane14;			// 14
+		DList<TESObjectREFR>	waterPlanes;		// 24
+		DList<void>				list30;				// 30
+		DList<void>				list3C;				// 3C
+		DList<void>				list48;				// 48
+		BSRenderedTexture		*waterRenderTarget;	// 54
+		NiAVObject				*object58;			// 58
+		bool					usesWaterLevel;		// 5C
+		UInt8					byte5D;				// 5D
+		UInt8					byte5E;				// 5E
+		bool					isInterior;			// 5F
+		bool					allowLowDetailReflections;	// 60
+		UInt8					pad61[3];			// 61
+		DList<NiNode>			geometryGroup;		// 64
+		DList<NiNode>			list70;				// 70
+		DList<NiNode>			depthCellGeometry;	// 7C
+		DList<NiNode>			list88;				// 88
+		BSShaderAccumulator		*shaderAccum94;		// 94
+		BSShaderAccumulator		*shaderAccum98;		// 98
+		UInt32					reflectionGroupCount;	// 9C
+		UInt32					depthGroupCount;	// A0
+		NiCamera				*cameraA4;			// A4
+		NiCamera				*depthCamera;		// A8
+		UInt16					stencilMask;		// AC
+		UInt16					wordAE;				// AE
 	};
 
-	struct Struct8C
-	{
-		UInt32		unk00;
-		UInt32		unk04;
-		UInt32		unk08;
-	};
+	UInt32										unk00;			// 00
+	UInt32										unk04;			// 04
+	NiObject									*object08;		// 08
+	NiObject									*object0C;		// 0C
+	NiObject									*object10;		// 10
+	NiObject									*object14;		// 14
+	NiObject									*object18;		// 18
+	NiObject									*noiseTexture;	// 1C	Seen NiSourceTexture
+	NiObject									*object20;		// 20
+	UInt32										unk24;			// 24
+	UInt32										unk28;			// 28
+	UInt32										unk2C;			// 2C
+	UInt32										unk30;			// 30
+	UInt32										unk34;			// 34
+	UInt32										unk38;			// 38
+	DList<WaterGroup>							waterGroups;	// 3C
+	WaterGroup									*waterLOD;		// 48	(Assumed)
+	NiTMap<TESObjectREFR*, TESObjectREFR*>		map4C;			// 4C
+	NiTMap<TESObjectREFR*, TESObjectREFR*>		map5C;			// 5C
+	NiTMap<TESWaterForm*, bool>					map6C;			// 6C
+	NiTMap<TESObjectREFR*, WadingWaterData*>	wadingWaterMap;	// 7C
+	Sound										sound8C;		// 8C
+	float										flt98;			// 98
+	UInt32										unk9C;			// 9C
 
-	UInt32								unk00;			// 00
-	UInt32								unk04;			// 04
-	NiObject							*object08;		// 08
-	NiObject							*object0C;		// 0C
-	NiObject							*object10;		// 10
-	NiObject							*object14;		// 14
-	NiObject							*object18;		// 18
-	NiObject							*object1C;		// 1C	Seen NiSourceTexture
-	NiObject							*object20;		// 20
-	UInt32								unk24;			// 24
-	UInt32								unk28;			// 28
-	UInt32								unk2C;			// 2C
-	UInt32								unk30;			// 30
-	UInt32								unk34;			// 34
-	UInt32								unk38;			// 38
-	DList<WaterGroup>					waterGroups;	// 3C
-	WaterGroup							*waterLOD;		// 48	(Assumed)
-	NiTPointerMap<TESObjectREFR>		map4C;			// 4C
-	NiTPointerMap<TESObjectREFR>		map5C;			// 5C
-	NiTPointerMap<TESWaterForm>			map6C;			// 6C
-	NiTMapBase<TESObjectREFR*, void*>	map7C;			// 7C
-	Struct8C							unk8C;			// 8C
-	float								flt98;			// 98
-	UInt32								unk9C;			// 9C
+	__forceinline static NiNode *GetWaterLOD() {return *(NiNode**)0x11DEA1C;}
+	__forceinline static NiNode *GetWaterWade() {return *(NiNode**)0x11C7C28;}
+
+	void __fastcall Update(NiCamera *camera);
+	void __fastcall UpdateEx(NiCamera *camera);
 };
 static_assert(sizeof(WaterSurfaceManager) == 0xA0);
 
@@ -690,6 +718,12 @@ class TES
 {
 public:
 	virtual void Fn_00(UInt32 arg1, UInt32 arg2, UInt32 arg3, UInt32 arg4, UInt32 arg5);
+
+	struct DeathCount
+	{
+		TESActorBase	*actorBase;
+		UInt16			count;
+	};
 
 	struct ParticleNode
 	{
@@ -702,24 +736,26 @@ public:
 	GridCellArray						*gridCellArray;		// 08
 	NiNode								*objRoot;			// 0C
 	NiNode								*LODroot;			// 10
-	NiNode								*niNode14;			// 14
+	NiNode								*waterLODRoot;		// 14
 	BSTempNodeManager					*tempNodeMgr;		// 18
 	NiDirectionalLight					*directionalLight;	// 1C
-	void								*objFog;			// 20
+	BSFogProperty						*fogProperty;		// 20
 	CellCoord							exteriorGrid;		// 24
 	CellCoord							exteriorCoord;		// 2C
 	TESObjectCELL						*currentInterior;	// 34
 	TESObjectCELL						**interiorsBuffer;	// 38
 	TESObjectCELL						**exteriorsBuffer;	// 3C
-	UInt32								unk40[4];			// 40
+	UInt32								interiorBufferSize;	// 40
+	UInt32								exteriorBufferSize;	// 44
+	CellCoord							savedGrid;			// 48
 	UInt8								byte50;				// 50
-	UInt8								isTestAllCells;		// 51
+	bool								isTestAllCells;		// 51
 	UInt8								byte52;				// 52
 	UInt8								pad53;				// 53
 	void								*renderTestCellsCallback;	// 54
 	UInt32								unk58;				// 58
 	UInt32								unk5C;				// 5C
-	UInt8								showCellBorders;	// 60
+	bool								showCellBorders;	// 60
 	UInt8								pad61[3];			// 61
 	WaterSurfaceManager					*waterManager;		// 64
 	Sky									*sky;				// 68
@@ -729,17 +765,17 @@ public:
 	float								flt84;				// 84	Abs Y distance from centre of grid.
 	TESWorldSpace						*currentWrldspc;	// 88
 	tList<UInt32>						list8C;				// 8C
-	tList<UInt32>						list94;				// 94
-	tList<UInt32>						list9C;				// 9C
+	tList<TESObjectREFR>				cellFurnitureRefs;	// 94
+	tList<DeathCount>					deathCounts;		// 9C
 	QueuedFile							*unkA4;				// A4
 	NiSourceTexture						*bloodTexture;		// A8
 	QueuedFile							*unkAC;				// AC
 	ParticleNode						*particleCacheHead;	// B0
-	UInt8								byteB4;				// B4
-	UInt8								allowUnusedPurge;	// B5
+	bool								fadeWhenLoading;	// B4
+	bool								allowUnusedPurge;	// B5
 	UInt8								byteB6;				// B6
 	UInt8								byteB7;				// B7
-	UInt32								unkB8;				// B8
+	UInt32								placeableWaterCount;// B8
 	NavMeshInfoMap						*navMeshInfoMap;	// BC
 	LoadedAreaBound						*areaBound;			// C0
 
@@ -756,6 +792,95 @@ public:
 	}
 
 	void UnloadBufferedExterior(TESObjectCELL *cell);
+
+	__forceinline void CreateTextureImage(const char *filePath, NiSourceTexture **outTexture, bool mustFindFile = 1, bool archiveOnly = 0)
+	{
+		//	filePath is relative to FalloutNV root, or optionally to Data.
+		ThisCall(0x4568C0, this, filePath, outTexture, mustFindFile, archiveOnly);
+	}
+
+	static NiLines *DrawAxesLines(float size)
+	{
+		return CdeclCall<NiLines*>(0xC59200, size);
+	}
+
+	static NiLines *DrawArrow(NiVector3 *direction, const NiColorAlpha &color)
+	{
+		auto shape = CdeclCall<NiLines*>(0xC59A50, direction, &color);
+		shape->AddProperty(BSShaderNoLightingProperty::Create());
+		shape->AddProperty(s_alphaProperty);
+		shape->AssignGeometryProps();
+		return shape;
+	}
+
+	static NiTriShape *DrawOctahedron(float diagonal, const NiColorAlpha &color)
+	{
+		auto shape = CdeclCall<NiTriShape*>(0x4B29B0, diagonal, &color, 0);
+		shape->AddProperty(BSShaderNoLightingProperty::Create());
+		shape->AddProperty(s_alphaProperty);
+		shape->AssignGeometryProps();
+		return shape;
+	}
+
+	static NiNode *DrawSphere(float diameter, UInt32 numEdges, const NiColorAlpha &color)
+	{
+		auto sphere = CdeclCall<NiNode*>(0xC56680, diameter, numEdges, numEdges, &color);
+		sphere->AddNoLightingPropertyRecurse();
+		sphere->AddPropertyRecurse(s_alphaProperty);
+		sphere->AssignGeometryProps();
+		return sphere;
+	}
+
+	static NiTriStrips *DrawCylinder(float radius, float height, UInt32 numEdges, const NiColorAlpha &color)
+	{
+		auto shape = NiTriStrips::Create(NiTriStripsData::DrawCylinder(radius, height, numEdges, color));
+		/*auto stencilProp = NiStencilProperty::Create();
+		stencilProp->flags = 0x4D80;
+		shape->AddProperty(stencilProp);*/
+		shape->AddProperty(BSShaderNoLightingProperty::Create());
+		shape->AddProperty(s_alphaProperty);
+		shape->AssignGeometryProps();
+		return shape;
+	}
+
+	static NiTriStrips *DrawCone(float diameter, float height, UInt32 numEdges, const NiColorAlpha &color)
+	{
+		auto shape = CdeclCall<NiTriStrips*>(0xC584A0, diameter, 0, height, numEdges, 1, &color);
+		/*auto stencilProp = NiStencilProperty::Create();
+		stencilProp->flags = 0x4D80;
+		shape->AddProperty(stencilProp);*/
+		shape->AddProperty(BSShaderNoLightingProperty::Create());
+		shape->AddProperty(s_alphaProperty);
+		shape->AssignGeometryProps();
+		return shape;
+	}
+
+	static NiTriStrips *DrawConvex(float radius, UInt32 numEdges, const NiColorAlpha &color)
+	{
+		auto convex = NiTriStrips::Create(NiTriStripsData::DrawConvex(radius, numEdges, color));
+		convex->AddProperty(BSShaderNoLightingProperty::Create());
+		convex->AddProperty(s_alphaProperty);
+		convex->AssignGeometryProps();
+		return convex;
+	}
+
+	static NiTriStrips *DrawPrism(float radius, float height, UInt32 numEdges, const NiColorAlpha &color)
+	{
+		auto shape = NiTriStrips::Create(NiTriStripsData::DrawPrism(radius, height, numEdges, color));
+		shape->AddProperty(BSShaderNoLightingProperty::Create());
+		shape->AddProperty(s_alphaProperty);
+		shape->AssignGeometryProps();
+		return shape;
+	}
+
+	static NiTriStrips *DrawTorus(float diamtrTube, float diamtrRing, UInt32 numEdgesTube, UInt32 numEdgesRing, const NiColorAlpha &color)
+	{
+		auto shape = CdeclCall<NiTriStrips*>(0xC57D70, diamtrTube, diamtrRing, numEdgesRing, numEdgesTube, &color);
+		shape->AddProperty(BSShaderNoLightingProperty::Create());
+		shape->AddProperty(s_alphaProperty);
+		shape->AssignGeometryProps();
+		return shape;
+	}
 };
 static_assert(sizeof(TES) == 0xC4);
 
@@ -782,8 +907,23 @@ struct GameTimeGlobals
 	__forceinline static GameTimeGlobals *Get() {return (GameTimeGlobals*)0x11DE7B8;}
 };
 
+// 34
+struct PositionRequest
+{
+	TESWorldSpace		*worldSpace;	// 00
+	TESObjectCELL		*cell;			// 04
+	NiVector3			position;		// 08
+	NiVector3			rotation;		// 14
+	bool				resetWeather;	// 20
+	UInt8				pad21[3];		// 21
+	void				*callback;		// 24
+	UInt32				cbArg;			// 28
+	TESObjectREFR		*destRef;		// 2C
+	TESObjectREFR		*fastTravelRef;	// 30
+};
+
 // 18
-class LoadedReferenceMap : public NiTPointerMap<TESObjectREFR>
+class LoadedReferenceMap : public NiTPtrMap<TESObjectREFR>
 {
 public:
 	UInt32			unk10;		// 10

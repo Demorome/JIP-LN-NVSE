@@ -79,10 +79,8 @@ bool Cmd_InjectUIXML_Execute(COMMAND_ARGS)
 	*result = 0;
 	char tilePath[0x100], xmlPath[0x80];
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &tilePath, &xmlPath))
-	{
-		Tile *component = GetTargetComponent(tilePath);
-		if (component) *result = component->ReadXML(xmlPath) ? 1 : 0;
-	}
+		if (Tile *component = GetTargetComponent(tilePath))
+			*result = component->ReadXML(xmlPath) ? 1 : 0;
 	return true;
 }
 
@@ -123,10 +121,8 @@ bool Cmd_InjectUIComponent_Execute(COMMAND_ARGS)
 	*result = 0;
 	char tilePath[0x100], *buffer = GetStrArgBuffer();
 	if (ExtractFormatStringArgs(1, buffer, EXTRACT_ARGS_EX, kCommandInfo_InjectUIComponent.numParams, &tilePath))
-	{
-		Tile *component = GetTargetComponent(tilePath);
-		*result = (component && InjectUIComponent(component, buffer)) ? 1 : 0;
-	}
+		if (Tile *component = GetTargetComponent(tilePath); component && InjectUIComponent(component, buffer))
+			*result = 1;
 	return true;
 }
 
@@ -162,8 +158,7 @@ bool Cmd_GetActiveMenuMode_Execute(COMMAND_ARGS)
 bool Cmd_GetActiveUIComponentName_Execute(COMMAND_ARGS)
 {
 	const char *tileName = nullptr;
-	Tile *activeTile = g_interfaceManager->GetActiveTile();
-	if (activeTile)
+	if (Tile *activeTile = g_interfaceManager->GetActiveTile())
 	{
 		char tilePath[0x100];
 		activeTile->GetComponentFullName(tilePath);
@@ -178,20 +173,17 @@ bool Cmd_GetActiveUIComponentFullName_Execute(COMMAND_ARGS)
 {
 	char tilePath[0x100];
 	tilePath[0] = 0;
-	Tile *activeTile = g_interfaceManager->GetActiveTile();
-	if (activeTile) activeTile->GetComponentFullName(tilePath);
+	if (Tile *activeTile = g_interfaceManager->GetActiveTile())
+		activeTile->GetComponentFullName(tilePath);
 	AssignString(PASS_COMMAND_ARGS, tilePath);
 	return true;
 }
 
 SInt32 GetActiveTileID()
 {
-	Tile *activeTile = g_interfaceManager->GetActiveTile();
-	if (activeTile)
-	{
-		TileValue *val = activeTile->GetValue(kTileValue_id);
-		if (val) return val->num;
-	}
+	if (Tile *activeTile = g_interfaceManager->GetActiveTile())
+		if (TileValue *val = activeTile->GetValue(kTileValue_id))
+			return val->num;
 	return -1;
 }
 
@@ -205,7 +197,8 @@ bool Cmd_GetMenuTargetRef_Execute(COMMAND_ARGS)
 {
 	REFR_RES = 0;
 	UInt32 menuID;
-	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &menuID) || (menuID > kMenuType_Max)) return true;
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &menuID) || (menuID > kMenuType_Max))
+		return true;
 	TileMenu *tileMenu = g_tileMenuArray[menuID - kMenuType_Min];
 	Menu *menu = tileMenu ? tileMenu->menu : nullptr;
 	if (!menu) return true;
@@ -256,10 +249,17 @@ bool Cmd_GetMenuTargetRef_Execute(COMMAND_ARGS)
 			if (mapMenu->mapMarker)
 			{
 				static UInt32 valueID = 0;
-				if (!valueID) valueID = TraitNameToID("_MarkerIndex");
+				if (!valueID) valueID = Tile::TraitNameToID("_MarkerIndex");
 				TileValue *markerIdx = mapMenu->mapMarker->GetValue(valueID);
 				if (markerIdx) menuRef = mapMenu->mapMarkerList.GetNthItem(markerIdx->num);
 			}
+			break;
+		}
+		case kMenuType_LevelUp:
+		{
+			LevelUpMenu *levelUpMenu = (LevelUpMenu*)menu;
+			if ((levelUpMenu->currentPage == 1) && levelUpMenu->perkListBox.selected)
+				menuRef = levelUpMenu->perkListBox.GetSelected();
 			break;
 		}
 		case kMenuType_Repair:
@@ -310,17 +310,21 @@ bool Cmd_GetMenuItemFilter_Execute(COMMAND_ARGS)
 {
 	*result = -1;
 	UInt32 menuID, useRef = 0;
-	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &menuID, &useRef)) return true;
+	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &menuID, &useRef))
+		return true;
 	switch (menuID)
 	{
 		case kMenuType_Inventory:
-			if (InventoryMenu::Get()) *result = (int)InventoryMenu::Get()->filter + 1;
+			if (InventoryMenu::Get())
+				*result = (int)InventoryMenu::Get()->filter + 1;
 			break;
 		case kMenuType_Container:
-			if (ContainerMenu::Get()) *result = useRef ? (int)ContainerMenu::Get()->rightFilter : (int)ContainerMenu::Get()->leftFilter;
+			if (ContainerMenu::Get())
+				*result = useRef ? (int)ContainerMenu::Get()->rightFilter : (int)ContainerMenu::Get()->leftFilter;
 			break;
 		case kMenuType_Barter:
-			if (BarterMenu::Get()) *result = useRef ? (int)BarterMenu::Get()->rightFilter : (int)BarterMenu::Get()->leftFilter;
+			if (BarterMenu::Get())
+				*result = useRef ? (int)BarterMenu::Get()->rightFilter : (int)BarterMenu::Get()->leftFilter;
 	}
 	return true;
 }
@@ -334,15 +338,14 @@ bool Cmd_ClickMenuButton_Execute(COMMAND_ARGS)
 	Tile *component = nullptr;
 	Menu *parentMenu = nullptr;
 	SInt32 tileID = -1;
-	char *hashPos = FindChr(tilePath, '#');
-	if (hashPos)
+	if (char *hashPos = FindChr(tilePath, '#'))
 	{
 		tileID = StrToInt(hashPos + 1);
 		if (tileID >= 0)
 		{
 			*hashPos = 0;
-			TileMenu *tileMenu = GetMenuTile(tilePath);
-			if (tileMenu) parentMenu = tileMenu->menu;
+			if (TileMenu *tileMenu = GetMenuTile(tilePath))
+				parentMenu = tileMenu->menu;
 		}
 	}
 	else
@@ -350,8 +353,8 @@ bool Cmd_ClickMenuButton_Execute(COMMAND_ARGS)
 		component = GetTargetComponent(tilePath);
 		if (!component) return true;
 		parentMenu = component->GetParentMenu();
-		TileValue *tileVal = component->GetValue(kTileValue_id);
-		if (tileVal) tileID = tileVal->num;
+		if (TileValue *tileVal = component->GetValue(kTileValue_id))
+			tileID = tileVal->num;
 	}
 	if (parentMenu)
 	{
@@ -372,22 +375,19 @@ bool Cmd_GetSelectedItemRef_Execute(COMMAND_ARGS)
 	{
 		case kMenuType_Inventory:
 		{
-			InventoryMenu *invMenu = InventoryMenu::Get();
-			if (invMenu->itemList.selected)
+			if (InventoryMenu::Get()->itemList.selected)
 				entry = InventoryMenu::Selection();
 			break;
 		}
 		case kMenuType_Stats:
 		{
-			StatsMenu *statsMenu = StatsMenu::Get();
-			if (statsMenu->perkRankList.selected)
+			if (StatsMenu *statsMenu = StatsMenu::Get(); statsMenu->perkRankList.selected)
 				itemRef = statsMenu->perkRankList.GetSelected()->perk;
 			break;
 		}
 		case kMenuType_Container:
 		{
-			ContainerMenu *cntMenu = ContainerMenu::Get();
-			if (cntMenu->leftItems.selected || cntMenu->rightItems.selected)
+			if (ContainerMenu *cntMenu = ContainerMenu::Get(); cntMenu->leftItems.selected || cntMenu->rightItems.selected)
 			{
 				entry = ContainerMenu::Selection();
 				if (cntMenu->rightItems.selected)
@@ -408,15 +408,13 @@ bool Cmd_GetSelectedItemRef_Execute(COMMAND_ARGS)
 		}
 		case kMenuType_Repair:
 		{
-			RepairMenu *rprMenu = RepairMenu::Get();
-			if (rprMenu->repairItems.selected)
+			if (RepairMenu *rprMenu = RepairMenu::Get(); rprMenu->repairItems.selected)
 				entry = rprMenu->repairItems.GetSelected();
 			break;
 		}
 		case kMenuType_Barter:
 		{
-			BarterMenu *brtMenu = BarterMenu::Get();
-			if (brtMenu->leftItems.selected || brtMenu->rightItems.selected)
+			if (BarterMenu *brtMenu = BarterMenu::Get(); brtMenu->leftItems.selected || brtMenu->rightItems.selected)
 			{
 				entry = BarterMenu::Selection();
 				if (brtMenu->rightItems.selected)
@@ -426,15 +424,13 @@ bool Cmd_GetSelectedItemRef_Execute(COMMAND_ARGS)
 		}
 		case kMenuType_RepairServices:
 		{
-			RepairServicesMenu *rpsMenu = RepairServicesMenu::Get();
-			if (rpsMenu->itemList.selected)
+			if (RepairServicesMenu *rpsMenu = RepairServicesMenu::Get(); rpsMenu->itemList.selected)
 				entry = rpsMenu->itemList.GetSelected();
 			break;
 		}
 		case kMenuType_ItemMod:
 		{
-			ItemModMenu *modMenu = ItemModMenu::Get();
-			if (modMenu->itemModList.selected)
+			if (ItemModMenu *modMenu = ItemModMenu::Get(); modMenu->itemModList.selected)
 				entry = modMenu->itemModList.GetSelected();
 		}
 	}
@@ -532,10 +528,8 @@ bool Cmd_GetFontFile_Execute(COMMAND_ARGS)
 	const char *resStr = nullptr;
 	UInt32 fontID;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &fontID) && fontID && (fontID <= 89) && (fontID != 9))
-	{
-		FontInfo *fontInfo = g_fontManager->fontInfos[fontID - 1];
-		if (fontInfo) resStr = fontInfo->filePath;
-	}
+		if (FontInfo *fontInfo = g_fontManager->fontInfos[fontID - 1])
+			resStr = fontInfo->filePath;
 	AssignString(PASS_COMMAND_ARGS, resStr);
 	return true;
 }
@@ -552,11 +546,11 @@ bool Cmd_SetFontFile_Execute(COMMAND_ARGS)
 	if (!fontInfo)
 	{
 		if (!FileExists(dataPathFull)) return true;
-		fontInfo = (FontInfo*)GameHeapAlloc(sizeof(FontInfo));
+		fontInfo = Game_HeapAlloc<FontInfo>();
 		fontInfo->Init(fontID, dataPath, true);
 		if (!fontInfo->bufferData)
 		{
-			GameHeapFree(fontInfo);
+			Game_HeapFree(fontInfo);
 			return true;
 		}
 		s_fontInfosMap()[dataPath] = fontInfo;
@@ -592,9 +586,8 @@ __declspec(naked) TextEditMenu* __stdcall ShowTextEditMenu(float width, float he
 		test	ecx, ecx
 		jz		resetActive
 		push	0
-		push	0
-		push	kTileValue_mouseover
-		CALL_EAX(ADDR_TileSetFloat)
+		mov		edx, kTileValue_mouseover
+		call	Tile::SetBool
 	resetActive:
 		and		dword ptr [esi+0xCC], 0
 		and		dword ptr [esi+0xD0], 0
@@ -607,50 +600,40 @@ __declspec(naked) TextEditMenu* __stdcall ShowTextEditMenu(float width, float he
 		push	kTileValue_depth
 		mov		ecx, [edi+4]
 		CALL_EAX(ADDR_TileSetFloat)
-		mov		eax, [esp+0xC]
-		push	0
-		push	eax
-		push	kTileValue_user0
+		movss	xmm0, [esp+0xC]
+		mov		edx, kTileValue_user0
 		mov		ecx, [edi+4]
-		CALL_EAX(ADDR_TileSetFloat)
-		mov		eax, [esp+0x10]
-		push	0
-		push	eax
-		push	kTileValue_user1
+		call	Tile::SetFloat
+		movss	xmm0, [esp+0x10]
+		mov		edx, kTileValue_user1
 		mov		ecx, [edi+4]
-		CALL_EAX(ADDR_TileSetFloat)
+		call	Tile::SetFloat
 		mov		esi, [esp+0x14]
 		mov		[esi+0x50], 0
 		cmp		[esi], 0
 		jnz		hasTitle
 		push	0
-		push	0
-		push	kTileValue_visible
+		mov		edx, kTileValue_visible
 		mov		ecx, [edi+0x30]
-		CALL_EAX(ADDR_TileSetFloat)
+		call	Tile::SetBool
 	hasTitle:
-		push	0
 		push	esi
-		push	kTileValue_string
+		mov		edx, kTileValue_string
 		mov		ecx, [edi+0x30]
-		CALL_EAX(ADDR_TileSetString)
-		push	kTileValue_font
+		call	Tile::SetString
+		mov		edx, kTileValue_font
 		mov		ecx, [edi+0x28]
-		CALL_EAX(ADDR_TileGetFloat)
-		fistp	dword ptr [edi+0x4C]
-		mov		ecx, [edi+0x4C]
-		mov		esi, offset s_fontHeightDatas
-		lea		esi, [esi+ecx*8]
-		push	0
-		push	dword ptr [esi]
-		push	kTileValue_user0
+		call	Tile::GetValueFloat
+		cvtss2si	ecx, xmm0
+		lea		esi, s_fontHeightDatas[ecx*8]
+		movss	xmm0, [esi]
+		mov		edx, kTileValue_user0
 		mov		ecx, [edi+0x28]
-		CALL_EAX(ADDR_TileSetFloat)
-		push	0
-		push	dword ptr [esi+4]
-		push	kTileValue_user1
+		call	Tile::SetFloat
+		movss	xmm0, [esi+4]
+		mov		edx, kTileValue_user1
 		mov		ecx, [edi+0x28]
-		CALL_EAX(ADDR_TileSetFloat)
+		call	Tile::SetFloat
 		push	0x400
 		lea		ecx, [edi+0x34]
 		call	String::Init
@@ -660,11 +643,10 @@ __declspec(naked) TextEditMenu* __stdcall ShowTextEditMenu(float width, float he
 		mov		ecx, [edi+0x3C]
 		mov		word ptr [ecx], '|'
 		inc		word ptr [edi+0x40]
-		push	0
 		push	dword ptr ds:0x11D38BC
-		push	kTileValue_string
+		mov		edx, kTileValue_string
 		mov		ecx, [edi+0x2C]
-		CALL_EAX(ADDR_TileSetString)
+		call	Tile::SetString
 		and		dword ptr [edi+0x44], 0
 		mov		dword ptr [edi+0x48], 0x7FFF0001
 		mov		eax, [edi+0x28]
@@ -1084,7 +1066,7 @@ bool Cmd_ShowQuantityMenu_Execute(COMMAND_ARGS)
 	Script *callback;
 	int maxCount, defaultCount = -1;
 	if (!QuantityMenu::Get() && ExtractArgsEx(EXTRACT_ARGS_EX, &callback, &maxCount, &defaultCount) && (maxCount > 0) && IS_ID(callback, Script) &&
-		ShowQuantityMenu(maxCount, QuantityMenuCallback, ((defaultCount < 0) || (defaultCount > maxCount)) ? maxCount : defaultCount))
+		QuantityMenu::ShowMenu(maxCount, QuantityMenuCallback, ((defaultCount < 0) || (defaultCount > maxCount)) ? maxCount : defaultCount))
 	{
 		s_quantityMenuScript = callback;
 		CaptureLambdaVars(callback);
@@ -1190,11 +1172,9 @@ bool Cmd_GetVATSTargets_Execute(COMMAND_ARGS)
 	if (!VATSMenu::Get()) return true;
 	TempElements *tmpElements = GetTempElements();
 	auto iter = GameGlobals::VATSTargetList()->Head();
-	VATSTarget *targetInfo;
 	do
 	{
-		targetInfo = iter->data;
-		if (targetInfo && targetInfo->targetRef)
+		if (VATSTarget *targetInfo = iter->data; targetInfo && targetInfo->targetRef)
 			tmpElements->Append(targetInfo->targetRef);
 	}
 	while (iter = iter->next);
@@ -1253,24 +1233,14 @@ bool Cmd_UnloadUIComponent_Execute(COMMAND_ARGS)
 {
 	char tilePath[0x100];
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &tilePath))
-	{
-		Tile *component = GetTargetComponent(tilePath);
-		if (component) component->Destroy(true);
-	}
+		if (Tile *component = GetTargetComponent(tilePath))
+			component->Destroy(true);
 	return true;
 }
 
 bool Cmd_ClearMessageQueue_Execute(COMMAND_ARGS)
 {
-	HUDMainMenu *hudMain = g_HUDMainMenu;
-	if (!hudMain->queuedMessages.Empty())
-	{
-		hudMain->queuedMessages.DeleteAll();
-		hudMain->currMsgStartTime = 0;
-		hudMain->tile08C->SetFloat(kTileValue_alpha, 0);
-		hudMain->tile090->SetFloat(kTileValue_alpha, 0);
-		hudMain->tile094->SetFloat(kTileValue_alpha, 0);
-	}
+	g_HUDMainMenu->ClearMessageQueue();
 	return true;
 }
 
@@ -1278,14 +1248,11 @@ bool Cmd_SetSystemColor_Execute(COMMAND_ARGS)
 {
 	UInt32 type, red, green, blue;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &type, &red, &green, &blue) && type && (type <= 5))
-	{
-		auto colorNode = SystemColorManager::GetSingleton()->sysColors.Head()->Advance(type - 1);
-		if (colorNode && colorNode->data)
+		if (auto sysColor = SystemColorManager::GetSingleton()->sysColors.GetNthItem(type - 1))
 		{
-			colorNode->data->SetColorRGB(red, green, blue);
+			sysColor->SetColorRGB(red, green, blue);
 			ThisCall(0xA0B350, g_interfaceManager->menuRoot, type, 0);
 		}
-	}
 	return true;
 }
 
@@ -1318,7 +1285,7 @@ bool s_showQuestMessages = true;
 void ToggleQuestMessages()
 {
 	s_showQuestMessages = !s_showQuestMessages;
-	*(bool*)0x11CB4D8/*bShowChallengeUpdates*/ = s_showQuestMessages;
+	INIS_BOOL(bShowChallengeUpdates_GamePlay) = s_showQuestMessages;
 	if (s_showQuestMessages)
 	{
 		SAFE_WRITE_BUF(0x77A480, "\x55\x8B\xEC\x83\xEC");
@@ -1478,14 +1445,11 @@ bool Cmd_ClickMenuTile_Execute(COMMAND_ARGS)
 	*result = 0;
 	char tilePath[0x100];
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &tilePath) && GetMenuMode())
-	{
-		Tile *component = GetTargetComponent(tilePath);
-		if (component && (component->GetValueFloat(kTileValue_target) > 0))
+		if (Tile *component = GetTargetComponent(tilePath); component && (component->GetValueFloat(kTileValue_target) > 0))
 		{
-			component->FakeClick();
+			component->PokeValue(kTileValue_clicked);
 			*result = 1;
 		}
-	}
 	return true;
 }
 
@@ -1639,10 +1603,10 @@ bool Cmd_ToggleHUDCursor_Execute(COMMAND_ARGS)
 		}
 		else
 		{
-			g_interfaceManager->cursor->SetFloat(kTileValue_visible, 0);
+			g_interfaceManager->cursor->SetBool(kTileValue_visible, 0);
 			g_interfaceManager->cursor->node->Hide();
 			if (g_interfaceManager->activeTile)
-				g_interfaceManager->activeTile->SetFloat(kTileValue_mouseover, 0);
+				g_interfaceManager->activeTile->SetBool(kTileValue_mouseover, 0);
 		}
 		g_interfaceManager->activeTile = nullptr;
 		g_interfaceManager->activeMenu = nullptr;
@@ -1655,7 +1619,7 @@ bool Cmd_ToggleHUDCursor_Execute(COMMAND_ARGS)
 bool Cmd_AddTileFromTemplate_Execute(COMMAND_ARGS)
 {
 	*result = 0;
-	char buffer[0x80];
+	char buffer[0x100];
 	if (ExtractFormatStringArgs(0, buffer, EXTRACT_ARGS_EX, kCommandInfo_AddTileFromTemplate.numParams))
 	{
 		char *tempName = GetNextToken(buffer, '|');
@@ -1701,12 +1665,11 @@ bool Cmd_SetUIFloatGradual_Execute(COMMAND_ARGS)
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &tilePath, &startVal, &endVal, &timer, &changeMode))
 	{
 		TileValue *tileVal = nullptr;
-		Tile *component = GetTargetComponent(tilePath, &tileVal);
-		if (component)
-		{
+		if (Tile *component = GetTargetComponent(tilePath, &tileVal))
 			if (numArgs >= 4)
 			{
-				if (changeMode > 4) changeMode = 0;
+				if (changeMode > 4)
+					changeMode = 0;
 				else
 				{
 					UInt8 changeModeMatch[] = {0, 4, 1, 5, 6};
@@ -1720,7 +1683,6 @@ bool Cmd_SetUIFloatGradual_Execute(COMMAND_ARGS)
 				if (numArgs >= 2)
 					tileVal->SetFloat(startVal);
 			}
-		}
 	}
 	return true;
 }
@@ -1738,11 +1700,9 @@ bool Cmd_CloseActiveMenu_Execute(COMMAND_ARGS)
 			if (!menuID) continue;
 			if (menuID >= kMenuType_Min)
 			{
-				TileMenu *tileMenu = g_tileMenuArray[menuID - kMenuType_Min];
-				if (tileMenu)
+				if (TileMenu *tileMenu = g_tileMenuArray[menuID - kMenuType_Min])
 				{
-					FORenderedMenu *renderedMenu = intrfcMgr->renderedMenu;
-					if (renderedMenu && (renderedMenu->tileMenu == tileMenu))
+					if (FORenderedMenu *renderedMenu = intrfcMgr->renderedMenu; renderedMenu && (renderedMenu->tileMenu == tileMenu))
 						renderedMenu->Close();
 					else tileMenu->Destroy(true);
 				}
@@ -1786,8 +1746,7 @@ bool Cmd_ShowLevelUpMenuEx_Execute(COMMAND_ARGS)
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &skillPoints))
 	{
 		CdeclCall(0x784C80);
-		LevelUpMenu *menu = *(LevelUpMenu**)0x11D9FDC;
-		if (menu)
+		if (LevelUpMenu *menu = *(LevelUpMenu**)0x11D9FDC)
 		{
 			menu->numSkillPointsToAssign = skillPoints;
 			ThisCall(0x785830, menu, 0);
@@ -1801,18 +1760,12 @@ bool Cmd_AttachUIXML_Execute(COMMAND_ARGS)
 	*result = 0;
 	char nodeName[0x40], xmlPath[0x80];
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &nodeName, &xmlPath))
-	{
-		NiNode *targetNode = thisObj->GetNode(nodeName);
-		if (targetNode)
-		{
-			Tile *component = g_HUDMainMenu->tile->ReadXML(xmlPath);
-			if (component && component->node)
+		if (NiNode *targetNode = thisObj->GetNode(nodeName))
+			if (Tile *component = g_HUDMainMenu->tile->ReadXML(xmlPath); component && component->node)
 			{
 				targetNode->AddObject(component->node, 1);
 				*result = 1;
 			}
-		}
-	}
 	return true;
 }
 
@@ -1821,165 +1774,40 @@ bool Cmd_AttachUIComponent_Execute(COMMAND_ARGS)
 	*result = 0;
 	char nodeName[0x40], *buffer = GetStrArgBuffer();
 	if (ExtractFormatStringArgs(1, buffer, EXTRACT_ARGS_EX, kCommandInfo_AttachUIComponent.numParams, &nodeName))
-	{
-		NiNode *targetNode = thisObj->GetNode(nodeName);
-		if (targetNode)
-		{
-			Tile *component = InjectUIComponent(g_HUDMainMenu->tile, buffer);
-			if (component && component->node)
+		if (NiNode *targetNode = thisObj->GetNode(nodeName))
+			if (Tile *component = InjectUIComponent(g_HUDMainMenu->tile, buffer); component && component->node)
 			{
 				targetNode->AddObject(component->node, 1);
 				*result = 1;
 			}
-		}
-	}
 	return true;
 }
+
+TESWorldSpace *s_currWorldSpaceA = nullptr, *s_mapWorldSpaceA = nullptr;
+WorldDimensions s_worldDimensionsA;
 
 bool Cmd_GetWorldMapPosMults_Execute(COMMAND_ARGS)
 {
-	static TESWorldSpace *currWorldSpace = nullptr, *mapWorldSpace = nullptr;
-	static WorldDimensions worldDimensions;
 	ScriptVar *outX, *outY;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &outX, &outY))
-	{
-		TESWorldSpace *parentWorld = thisObj->GetParentWorld();
-		if (parentWorld)
+		if (TESWorldSpace *parentWorld = thisObj->GetParentWorld())
 		{
-			if (currWorldSpace != parentWorld)
+			if (s_currWorldSpaceA != parentWorld)
 			{
-				currWorldSpace = parentWorld;
-				worldDimensions.GetPosMods(parentWorld);
+				s_currWorldSpaceA = parentWorld;
+				s_worldDimensionsA.InitPosMods(parentWorld);
 				TESWorldSpace *rootWorld = parentWorld->GetRootMapWorld();
-				if (mapWorldSpace != rootWorld)
+				if (s_mapWorldSpaceA != rootWorld)
 				{
-					mapWorldSpace = rootWorld;
-					worldDimensions.GetDimensions(rootWorld);
+					s_mapWorldSpaceA = rootWorld;
+					s_worldDimensionsA.InitDimensions(rootWorld);
 				}
 			}
-			NiPoint2 outPos = GetWorldMapPosMults(thisObj->position.PS2(), worldDimensions);
+			NiPoint2 outPos = GetWorldMapPosMults(thisObj->position.PS2(), s_worldDimensionsA);
 			outX->data = outPos.x;
 			outY->data = outPos.y;
 		}
-	}
 	return true;
-}
-
-__declspec(naked) void __stdcall GenerateRenderedUITexture(NiNode *tileNode, const NiVector4 &scrArea, NiTexture **pTexture)
-{
-	static BSCullingProcess *s_cullingProcessUI = nullptr;
-	__asm
-	{
-		push	ebp
-		mov		ebp, esp
-		mov		ecx, ds:0x11F4748
-		push	ecx
-		xor		eax, eax
-		push	eax
-		push	eax
-		push	eax
-		push	eax
-		push	eax
-		push	D3DFMT_A8R8G8B8
-		push	eax
-		mov		eax, [ebp+0xC]
-		movq	xmm0, qword ptr [eax+8]
-		cvtps2dq	xmm0, xmm0
-		sub		esp, 8
-		movlps	[esp], xmm0
-		push	ecx
-		mov		ecx, ds:0x11F91A8
-		CALL_EAX(0xB6D5E0)
-		test	eax, eax
-		jz		done
-		push	eax
-		mov		eax, s_cullingProcessUI
-		test	eax, eax
-		jnz		hasCulling
-		push	0x350
-		CALL_EAX(0xAA13E0)
-		pop		ecx
-		push	0x2F7
-		push	1
-		push	0x64
-		mov		ecx, eax
-		CALL_EAX(0xB660D0)
-		mov		dword ptr [eax+4], 2
-		mov		dword ptr [eax+0x19C], 0xA
-		push	eax
-		push	0
-		lea		ecx, [eax+0x280]
-		CALL_EAX(0x4A0EB0)
-		pop		dword ptr [eax+0xC4]
-		mov		dword ptr [eax+0x90], 1
-		mov		s_cullingProcessUI, eax
-	hasCulling:
-		push	eax
-		push	dword ptr [eax+0xC4]
-		mov		ecx, g_interfaceManager
-		mov		ecx, [ecx+4]
-		push	dword ptr [ecx+0xAC]
-		mov		ecx, [ebp-4]
-		push	dword ptr [ecx+0x5E0]
-		and		dword ptr [ecx+0x5E0], 0
-		cmp		dword ptr [ecx+0x200], 0
-		jnz		scnActive
-		mov		ecx, [ebp-8]
-		push	dword ptr [ecx+8]
-		push	1			//	NiRenderer::kClrFlag_BackBuffer
-		CALL_EAX(0xB6B8D0)
-		add		esp, 8
-	scnActive:
-		sub		esp, 0x14
-		mov		ecx, [ebp-0x14]
-		movups	xmm0, [ecx+0xDC]
-		movups	[ebp-0x28], xmm0
-		mov		eax, [ebp+0xC]
-		movq	xmm0, qword ptr [eax]
-		movq	xmm1, qword ptr [eax+8]
-		pshufd	xmm2, PS_FlipSignMask0, 0x51
-		xorps	xmm0, xmm2
-		xorps	xmm1, xmm2
-		movss	xmm2, g_screenHeight
-		addss	xmm2, xmm2
-		pslldq	xmm2, 4
-		addps	xmm0, xmm2
-		addps	xmm1, xmm0
-		unpcklps	xmm0, xmm1
-		movups	[ecx+0xDC], xmm0
-		mov		eax, [ebp+8]
-		test	byte ptr [eax+0x30], 1
-		setnz	[ebp-0x29]
-		and		byte ptr [eax+0x30], 0xFE
-		push	dword ptr [ebp-0xC]
-		push	eax
-		push	ecx
-		CALL_EAX(0xB6BEE0)
-		add		esp, 0xC
-		push	dword ptr [ebp-0x10]
-		push	dword ptr [ebp-0x14]
-		CALL_EAX(0xB6C0D0)
-		add		esp, 8
-		CALL_EAX(0xB6B790)
-		mov		eax, [ebp+8]
-		mov		dl, [ebp-0x29]
-		or		[eax+0x30], dl
-		mov		eax, [ebp-4]
-		mov		edx, [ebp-0x18]
-		mov		[eax+0x5E0], edx
-		mov		ecx, [ebp-0x14]
-		movups	xmm0, [ebp-0x28]
-		movups	[ecx+0xDC], xmm0
-		mov		ecx, [ebp-8]
-		push	dword ptr [ecx+0x30]
-		push	dword ptr [ebp+0x10]
-		call	NiReleaseAddRef
-		mov		ecx, [ebp-8]
-		call	NiReleaseObject
-	done:
-		leave
-		retn	0xC
-	}
 }
 
 bool Cmd_ProjectUITile_Execute(COMMAND_ARGS)
@@ -2000,7 +1828,7 @@ bool Cmd_ProjectUITile_Execute(COMMAND_ARGS)
 			else tileNode = g_interfaceManager->uiRootNode;
 			if (tileNode)
 			{
-				GenerateRenderedUITexture(tileNode, scrArea, pTexture);
+				BSTextureManager::GenerateRenderedUITexture(tileNode, scrArea, pTexture);
 				*result = 1;
 			}
 		}

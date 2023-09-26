@@ -1,83 +1,35 @@
 #pragma once
 
-#define CALL_EAX(addr) __asm mov eax, addr __asm call eax
-#define JMP_EAX(addr)  __asm mov eax, addr __asm jmp eax
-#define JMP_EDX(addr)  __asm mov edx, addr __asm jmp edx
+#define GAME_HEAP 0x11F6238
 
-#define DUP_2(a) a a
-#define DUP_3(a) a a a
-#define DUP_4(a) a a a a
+#define MARK_MODIFIED(form, flag) __asm push 0 __asm push flag __asm push form __asm mov ecx, g_BGSSaveLoadGame CALL_EAX(0x84A690)
 
-// These are used for 10h aligning segments in ASM code (massive performance gain, particularly with loops).
-#define EMIT(bt) __asm _emit 0x ## bt
+void* __stdcall Game_DoHeapAlloc(size_t size);
+void __stdcall Game_HeapFree(void *ptr);
 
-#define NOP_0x1 EMIT(90)
-//	"\x90"
-#define NOP_0x2 EMIT(66) NOP_0x1
-//	"\x66\x90"
-#define NOP_0x3 EMIT(0F) EMIT(1F) EMIT(00)
-//	"\x0F\x1F\x00"
-#define NOP_0x4 EMIT(0F) EMIT(1F) EMIT(40) EMIT(00)
-//	"\x0F\x1F\x40\x00"
-#define NOP_0x5 EMIT(0F) EMIT(1F) EMIT(44) EMIT(00) EMIT(00)
-//	"\x0F\x1F\x44\x00\x00"
-#define NOP_0x6 EMIT(66) NOP_0x5
-//	"\x66\x0F\x1F\x44\x00\x00"
-#define NOP_0x7 EMIT(0F) EMIT(1F) EMIT(80) EMIT(00) EMIT(00) EMIT(00) EMIT(00)
-//	"\x0F\x1F\x80\x00\x00\x00\x00"
-#define NOP_0x8 EMIT(0F) EMIT(1F) EMIT(84) EMIT(00) EMIT(00) EMIT(00) EMIT(00) EMIT(00)
-//	"\x0F\x1F\x84\x00\x00\x00\x00\x00"
-#define NOP_0x9 EMIT(66) NOP_0x8
-//	"\x66\x0F\x1F\x84\x00\x00\x00\x00\x00"
-#define NOP_0xA EMIT(66) NOP_0x9
-//	"\x66\x66\x0F\x1F\x84\x00\x00\x00\x00\x00"
-#define NOP_0xB EMIT(66) NOP_0xA
-//	"\x66\x66\x66\x0F\x1F\x84\x00\x00\x00\x00\x00"
-#define NOP_0xC NOP_0x8 NOP_0x4
-#define NOP_0xD NOP_0x8 NOP_0x5
-#define NOP_0xE NOP_0x7 NOP_0x7
-#define NOP_0xF NOP_0x8 NOP_0x7
-
-#define GAME_HEAP_ALLOC __asm mov ecx, 0x11F6238 CALL_EAX(0xAA3E40)
-#define GAME_HEAP_FREE  __asm mov ecx, 0x11F6238 CALL_EAX(0xAA4060)
-
-#define MARK_MODIFIED(form, flag) __asm push 0 __asm push flag __asm push form __asm mov ecx, g_BGSSaveLoadGame __asm mov eax, 0x84A690 __asm call eax
-
-template <typename T_Ret = void, typename ...Args>
-__forceinline T_Ret ThisCall(UInt32 _addr, void *_this, Args ...args)
+template <typename T = char> __forceinline T* Game_HeapAlloc(size_t count = 1)
 {
-	return ((T_Ret (__thiscall *)(void*, Args...))_addr)(_this, std::forward<Args>(args)...);
+	return (T*)Game_DoHeapAlloc(count * sizeof(T));
 }
 
-template <typename T_Ret = void, typename ...Args>
-__forceinline T_Ret StdCall(UInt32 _addr, Args ...args)
+template <typename T = char> __forceinline T* Ni_Alloc(size_t count = 1)
 {
-	return ((T_Ret (__stdcall *)(Args...))_addr)(std::forward<Args>(args)...);
+	return CdeclCall<T*>(0xAA13E0, count * sizeof(T));
+}
+template <typename T = char> __forceinline void Ni_Free(T *ptr, size_t count = 1)
+{
+	CdeclCall(0xAA1460, ptr, count * sizeof(T));
 }
 
-template <typename T_Ret = void, typename ...Args>
-__forceinline T_Ret CdeclCall(UInt32 _addr, Args ...args)
+#define GAME_RNG 0x11C4180
+__forceinline UInt32 GetRandomUInt(UInt32 uBound)
 {
-	return ((T_Ret (__cdecl *)(Args...))_addr)(std::forward<Args>(args)...);
+	return ThisCall<UInt32, UInt32>(ADDR_GetRandomInt, (void*)GAME_RNG, uBound);
 }
-
-#define GameHeapAlloc(size) ThisCall<void*, UInt32>(0xAA3E40, (void*)0x11F6238, size)
-#define GameHeapFree(ptr) ThisCall<void, void*>(0xAA4060, (void*)0x11F6238, ptr)
-
-#define GetRandomInt(n) ThisCall<SInt32, SInt32>(0xAA5230, (void*)0x11C4180, n)
-#define GetRandomIntInRange(iMin, iMax) (GetRandomInt(iMax - iMin) + iMin)
-
-#define LOG_HOOKS 0
-
-#define PS_DUP_1(a)	a, 0UL, 0UL, 0UL
-#define PS_DUP_2(a)	a, a, 0UL, 0UL
-#define PS_DUP_3(a)	a, a, a, 0UL
-#define PS_DUP_4(a)	a, a, a, a
-
-#define HEX(a) std::bit_cast<UInt32>(a)
-#define UBYT(a) *((UInt8*)&a)
-#define USHT(a) *((UInt16*)&a)
-#define ULNG(a) *((UInt32*)&a)
+__forceinline SInt32 GetRandomIntInRange(SInt32 iMin, SInt32 iMax)
+{
+	return ThisCall<SInt32, SInt32>(ADDR_GetRandomInt, (void*)GAME_RNG, iMax - iMin) + iMin;
+}
 
 extern const UInt32 kPackedValues[];
 extern const char kLwrCaseConverter[];
@@ -119,130 +71,19 @@ extern const char kLwrCaseConverter[];
 #define DblPId180	0.017453292519943295
 #define Dbl180dPI	57.29577951308232
 
-#define EMIT_DW(b0, b1, b2, b3) EMIT(b3) EMIT(b2) EMIT(b1) EMIT(b0)
-#define EMIT_DW_3(b0, b1, b2) EMIT_DW(00, b0, b1, b2)
-#define EMIT_DW_2(b0, b1) EMIT_DW(00, 00, b0, b1)
-#define EMIT_DW_1(b0) EMIT_DW(00, 00, 00, b0)
-#define EMIT_PS_1(b0, b1, b2, b3) EMIT_DW(b0, b1, b2, b3) DUP_3(EMIT_DW_1(00))
-#define EMIT_PS_2(b0, b1, b2, b3) DUP_2(EMIT_DW(b0, b1, b2, b3)) DUP_2(EMIT_DW_1(00))
-#define EMIT_PS_3(b0, b1, b2, b3) DUP_3(EMIT_DW(b0, b1, b2, b3)) EMIT_DW_1(00)
-#define EMIT_PS_4(b0, b1, b2, b3) DUP_4(EMIT_DW(b0, b1, b2, b3))
-#define EMIT_8(b0, b1, b2, b3, b4, b5, b6, b7) EMIT(b0) EMIT(b1) EMIT(b2) EMIT(b3) EMIT(b4) EMIT(b5) EMIT(b6) EMIT(b7)
-#define EMIT_4W(b0, b1, b2, b3, b4, b5, b6, b7) EMIT(b1) EMIT(b0) EMIT(b3) EMIT(b2) EMIT(b5) EMIT(b4) EMIT(b7) EMIT(b6)
-
 typedef void* (__cdecl *memcpy_t)(void*, const void*, size_t);
 extern memcpy_t MemCopy;
 
-#define COPY_BYTES(dest, src, count) __movsb((UInt8*)(dest), (const UInt8*)(src), count)
-#define ZERO_BYTES(addr, size) __stosb((UInt8*)(addr), 0, size)
-#define CPY_RET_END(dest, src, length) ((char*)memcpy(dest, src, length + 1) + length)
+#define NRGB(r, g, b) r / 255.0F, g / 255.0F, b / 255.0F
+#define NRGBA(r, g, b, a) __m128{r / 255.0F, g / 255.0F, b / 255.0F, a / 255.0F}
 
-//	Workaround used for:
-//	* Preventing the compiler from generating _atexit d'tors for static objects.
-//	* Bypassing the compiler calling the d'tor on function-scope objects.
-template <typename T> class TempObject
+extern UInt32 g_TLSIndex;
+
+union FltAndInt
 {
-	alignas(T) UInt8	objData[sizeof(T)];
-
-public:
-	TempObject() {Reset();}
-	TempObject(const T &src) {memcpy((void*)this, (const void*)&src, sizeof(T));}
-
-	template <typename ...Args>
-	TempObject(Args&& ...args)
-	{
-		new (this) T(std::forward<Args>(args)...);
-	}
-
-	void Reset() {new (this) T();}
-
-	void Destroy() {(*this)().~T();}
-
-	T& operator()() {return *(reinterpret_cast<T*>(this));}
-	T* operator*() {return reinterpret_cast<T*>(this);}
-	T* operator->() {return reinterpret_cast<T*>(this);}
-
-	inline operator T&() {return *(reinterpret_cast<T*>(this));}
-
-	TempObject& operator=(const T &rhs)
-	{
-		memcpy((void*)this, (const void*)&rhs, sizeof(T));
-		return *this;
-	}
-	TempObject& operator=(const TempObject &rhs)
-	{
-		memcpy((void*)this, (const void*)&rhs, sizeof(T));
-		return *this;
-	}
+	float		f;
+	int			i;
 };
-
-template <typename T> class StackObject
-{
-	alignas(T) UInt8	objData[sizeof(T)];
-
-public:
-	StackObject() {}
-
-	T& operator()() {return *(reinterpret_cast<T*>(this));}
-	T* operator*() {return reinterpret_cast<T*>(this);}
-	T* operator->() {return reinterpret_cast<T*>(this);}
-};
-
-//	Swap lhs and rhs, bypassing operator=
-template <typename T> __forceinline void RawSwap(const T &lhs, const T &rhs)
-{
-	alignas(T) UInt8	buffer[sizeof(T)];
-	memcpy((void*)buffer, (const void*)&lhs, sizeof(T));
-	memcpy((void*)&lhs, (const void*)&rhs, sizeof(T));
-	memcpy((void*)&rhs, (const void*)buffer, sizeof(T));
-}
-
-class CriticalSection : public CRITICAL_SECTION
-{
-public:
-	CriticalSection() {InitializeCriticalSection(this);}
-	~CriticalSection() {DeleteCriticalSection(this);}
-
-	void Enter() {EnterCriticalSection(this);}
-	void Leave() {LeaveCriticalSection(this);}
-	bool TryEnter() {return TryEnterCriticalSection(this) != 0;}
-};
-
-class PrimitiveCS
-{
-	UInt32		selfPtr = 0;
-
-public:
-	PrimitiveCS *Enter();
-	__forceinline void Leave() {selfPtr &= 0;}
-};
-
-class LightCS
-{
-	UInt32	owningThread = 0;
-	UInt32	enterCount = 0;
-
-public:
-	void Enter();
-	__forceinline void Leave()
-	{
-		if (!--enterCount)
-			owningThread &= 0;
-	}
-};
-
-template <typename T_CS> class ScopedLock
-{
-	T_CS		*cs;
-
-public:
-	ScopedLock(T_CS *_cs) : cs(_cs) {cs->Enter();}
-	~ScopedLock() {cs->Leave();}
-};
-
-typedef ScopedLock<CriticalSection> ScopedCS;
-typedef ScopedLock<PrimitiveCS> ScopedPrimitiveCS;
-typedef ScopedLock<LightCS> ScopedLightCS;
 
 union FunctionArg
 {
@@ -251,31 +92,210 @@ union FunctionArg
 	UInt32		uVal;
 	SInt32		iVal;
 
+	FunctionArg() {}
+	FunctionArg(void *_val) : pVal(_val) {}
+	FunctionArg(float _val) : fVal(_val) {}
+	FunctionArg(UInt32 _val) : uVal(_val) {}
+	FunctionArg(SInt32 _val) : iVal(_val) {}
+
 	inline void operator=(void *other) {pVal = other;}
 	inline void operator=(float other) {fVal = other;}
 	inline void operator=(UInt32 other) {uVal = other;}
 	inline void operator=(SInt32 other) {iVal = other;}
 };
 
-template <const size_t numBits> struct BitField
+template <typename T_Array> class ArrayUtils
 {
-	static_assert((numBits == 8) || (numBits == 16) || (numBits == 32));
-	using BITS = std::conditional_t<(numBits == 8), UInt8, std::conditional_t<(numBits == 16), UInt16, UInt32>>;
+	using T_Data = T_Array::Element;
+	using Data_Arg = std::conditional_t<std::is_scalar_v<T_Data>, T_Data, const T_Data&>;
+	using Data_Val = std::conditional_t<std::is_scalar_v<T_Data>, T_Data, T_Data&&>;
 	
-	BITS		bits;
+	static bool __vectorcall CompareLT(Data_Arg lhs, Data_Arg rhs) {return lhs < rhs;}
+	static bool __vectorcall CompareGT(Data_Arg lhs, Data_Arg rhs) {return rhs < lhs;}
 
-	BitField(BITS _init = 0) : bits(_init) {}
+	typedef bool (__vectorcall *SortComperator)(Data_Arg, Data_Arg);
+	static void QuickSort(T_Array &array, UInt32 l, UInt32 h, SortComperator comperator)
+	{
+		UInt32 i = l;
+		for (UInt32 j = l + 1; j < h; j++)
+			if (!comperator(array[l], array[j]))
+				RawSwap<T_Data>(&array[++i], &array[j]);
+		RawSwap<T_Data>(&array[l], &array[i]);
+		if (l < i)
+			QuickSort(array, l, i, comperator);
+		if (++i < h)
+			QuickSort(array, i, h, comperator);
+	}
+	
+public:
+	static void Sort(T_Array &array, bool descending = false)
+	{
+		if (array.Size() > 1)
+			QuickSort(array, 0, array.Size(), descending ? CompareGT : CompareLT);
+	}
 
-	inline void operator=(BITS rhs) {bits = rhs;}
+	static void Sort(T_Array &array, SortComperator comperator)
+	{
+		if (array.Size() > 1)
+			QuickSort(array, 0, array.Size(), comperator);
+	}
 
-	inline bool operator()(BITS bitMask) const {return (bits & bitMask) != 0;}
-	inline void operator|=(BITS bitMask) {bits |= bitMask;}
-	inline void operator&=(BITS bitMask) {bits &= ~bitMask;}
-	inline void operator^=(BITS bitMask) {bits ^= bitMask;}
-	inline bool operator[](UInt8 bitIndex) const {return (bits & (1 << bitIndex)) != 0;}
-	inline void operator+=(UInt8 bitIndex) {bits |= (1 << bitIndex);}
-	inline void operator-=(UInt8 bitIndex) {bits &= ~(1 << bitIndex);}
+	__declspec(noinline) static UInt32 InsertSorted(T_Array &array, Data_Val item, SortComperator comperator)
+	{
+		UInt32 lBound = 0, uBound = array.Size();
+		while (lBound != uBound)
+		{
+			UInt32 index = (lBound + uBound) >> 1;
+			if (comperator(item, array[index]))
+				uBound = index;
+			else lBound = index + 1;
+		}
+		uBound = array.Size() - lBound;
+		T_Data *pData = array.AllocateData();
+		if (uBound)
+		{
+			pData = array.Data() + lBound;
+			memmove(pData + 1, pData, sizeof(T_Data) * uBound);
+		}
+		*pData = std::move(item);
+		return lBound;
+	}
+	
+	static UInt32 InsertSorted(T_Array &array, Data_Val item, bool descending = false)
+	{
+		return InsertSorted(array, std::forward<T_Data>(item), descending ? CompareGT : CompareLT);
+	}
+
+	static void Shuffle(T_Array &array)
+	{
+		T_Data *pData = array.Data();
+		for (UInt32 count = array.Size(); count > 1; count--, pData++)
+			if (UInt32 rand = GetRandomUInt(count))
+				RawSwap<T_Data>(pData, &pData[rand]);
+	}
+
+	static void Reverse(T_Array &array)
+	{
+		if (array.Size() > 1)
+			for (UInt32 ftIdx = 0, bkIdx = array.Size() - 1; ftIdx < bkIdx; ftIdx++, bkIdx--)
+				RawSwap<T_Data>(&array[ftIdx], &array[bkIdx]);
+	}
 };
+
+template <typename T_List> class LinkedListUtils
+{
+	using T_Data = T_List::Element;
+	using Node = T_List::Node;
+
+	static void SwapData(Node *n1, Node *n2) {RawSwap<T_Data>(&n1->data, &n2->data);}
+	
+	static bool __fastcall CompareLT(const Node *n1, const Node *n2) {return n1->data < n2->data;}
+	static bool __fastcall CompareGT(const Node *n1, const Node *n2) {return n2->data < n1->data;}
+
+	typedef bool (__fastcall *SortComperator)(const Node*, const Node*);
+	static void QuickSort(Node *lNode, UInt32 l, UInt32 h, SortComperator comperator)
+	{
+		UInt32 i = l;
+		Node *iNode = lNode, *jNode = lNode->next;
+		for (UInt32 j = l + 1; j < h; j++, jNode = jNode->next)
+			if (!comperator(lNode, jNode))
+			{
+				i++;
+				iNode = iNode->next;
+				SwapData(jNode, iNode);
+			}
+		SwapData(lNode, iNode);
+		if (l < i)
+			QuickSort(lNode, l, i, comperator);
+		if (++i < h)
+			QuickSort(iNode->next, i, h, comperator);
+	}
+	
+public:
+	static void Sort(T_List &list, bool descending = false)
+	{
+		if (UInt32 count = list.Count(); count > 1)
+			QuickSort(list.Head(), 0, count, descending ? CompareGT : CompareLT);
+	}
+
+	static void Sort(T_List &list, SortComperator comperator)
+	{
+		if (UInt32 count = list.Count(); count > 1)
+			QuickSort(list.Head(), 0, count, comperator);
+	}
+
+	static void Shuffle(T_List &list)
+	{
+		Node *head = list.Head();
+		for (UInt32 count = list.Count(); count > 1; count--, head = head->next)
+			if (UInt32 rand = GetRandomUInt(count))
+				SwapData(head, head->GetNth(rand));
+	}
+
+	static void Exchange(T_List &list, UInt32 idx1, UInt32 idx2)
+	{
+		if (list.Empty()) return;
+		if (idx1 > idx2)
+		{
+			UInt32 tmp = idx1;
+			idx1 = idx2;
+			idx2 = tmp;
+		}
+		Node *iter = list.Head(), *node1 = nullptr;
+		UInt32 idx = 0;
+		do
+		{
+			if (!node1)
+			{
+				if (idx == idx1)
+					node1 = iter;
+			}
+			else if (idx == idx2)
+			{
+				SwapData(node1, iter);
+				break;
+			}
+			idx++;
+		}
+		while (iter = iter->next);
+	}
+};
+
+void PrintLog(const char *fmt, ...);
+void PrintDebug(const char *fmt, ...);
+
+template <typename T_HashMap> class HashMapUtils
+{
+	using Entry = T_HashMap::Entry;
+	using Bucket = T_HashMap::Bucket;
+	
+public:
+	static void DumpLoads(const T_HashMap &map)
+	{
+		UInt32 loadsArray[0x40];
+		ZERO_BYTES(loadsArray, sizeof(loadsArray));
+		UInt32 maxLoad = 0;
+		for (Bucket *pBucket = map.GetBuckets(), *pEnd = map.End(); pBucket != pEnd; pBucket++)
+		{
+			UInt32 entryCount = pBucket->Size();
+			loadsArray[entryCount]++;
+			if (maxLoad < entryCount)
+				maxLoad = entryCount;
+		}
+		PrintDebug("Size = %d\nBuckets = %d\n----------------\n", map.Size(), map.BucketCount());
+		for (UInt32 iter = 0; iter <= maxLoad; iter++)
+			if (loadsArray[iter]) PrintDebug("%d:\t%05d (%.4f%%)", iter, loadsArray[iter], 100.0 * (double)loadsArray[iter] / map.Size());
+	}
+};
+
+#define Use_ArrayUtils(cont_type, data_type)	\
+	using Element = data_type;	\
+	friend ArrayUtils<cont_type>;
+#define Use_LinkedListUtils(cont_type, data_type)	\
+	using Element = data_type;	\
+	friend LinkedListUtils<cont_type>;
+#define Use_HashMapUtils(cont_type)	\
+	friend HashMapUtils<cont_type>;
 
 struct CellCoord
 {
@@ -313,6 +333,31 @@ union Coordinate
 	inline operator UInt32() const {return xy;}
 	inline operator __m128i() const {return _mm_loadu_si32(this);}
 };
+
+__forceinline __m128 __vectorcall operator+(__m128 a, __m128 b)
+{
+	return _mm_add_ps(a, b);
+}
+__forceinline __m128 __vectorcall operator-(__m128 a, __m128 b)
+{
+	return _mm_sub_ps(a, b);
+}
+__forceinline __m128 __vectorcall operator*(__m128 a, __m128 b)
+{
+	return _mm_mul_ps(a, b);
+}
+__forceinline __m128 __vectorcall operator&(__m128 a, __m128 b)
+{
+	return _mm_and_ps(a, b);
+}
+__forceinline __m128 __vectorcall operator|(__m128 a, __m128 b)
+{
+	return _mm_or_ps(a, b);
+}
+__forceinline __m128 __vectorcall operator^(__m128 a, __m128 b)
+{
+	return _mm_xor_ps(a, b);
+}
 
 template <typename T1, typename T2> __forceinline T1 GetMin(T1 value1, T2 value2)
 {
@@ -383,7 +428,7 @@ char *GetStrArgBuffer();
 
 void __fastcall NiReleaseObject(NiRefObject *toRelease);
 
-NiRefObject** __stdcall NiReleaseAddRef(void *toRelease, NiRefObject *toAdd);
+NiRefObject** __stdcall NiReplaceObject(void *toRelease, NiRefObject *toAdd);
 
 UInt32 __fastcall RGBHexToDec(UInt32 rgb);
 
@@ -563,6 +608,7 @@ public:
 		else Reset();
 	}
 	
+	void operator=(const XString &other);
 	void operator=(const char *other);
 	
 	bool operator==(const XString &other) const;
@@ -609,6 +655,7 @@ public:
 	bool Open(const char *filePath);
 	bool OpenAt(const char *filePath, UInt32 inOffset);
 	bool OpenWrite(char *filePath, bool append);
+	bool OpenWriteEx(char *filePath, char *buffer, size_t buffSize);
 	void SetOffset(UInt32 inOffset);
 
 	void Close()
@@ -652,9 +699,6 @@ public:
 };
 
 extern TempObject<DebugLog> s_log, s_debug;
-
-void PrintLog(const char *fmt, ...);
-void PrintDebug(const char *fmt, ...);
 
 class LineIterator
 {

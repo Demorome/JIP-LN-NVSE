@@ -292,11 +292,13 @@ enum
 };
 
 #define GetExtraType(xDataList, Type) (Type*)(xDataList)->GetByType(kXData_ ## Type)
-#define CreatetraType(Type) \
-	UInt32 *dataPtr = (UInt32*)GameHeapAlloc(sizeof(Type)); \
+#define CreateExtraType(Type) \
+	UInt32 *dataPtr = (UInt32*)Game_HeapAlloc<Type>(); \
 	dataPtr[0] = kVtbl_ ## Type; \
 	dataPtr[1] = kXData_ ## Type; \
 	dataPtr[2] = 0;
+
+#define XDATA_CS ScopedLightCS cs((LightCS*)EXTRA_DATA_CS);
 
 const char *GetExtraDataName(UInt8 extraDataType);
 
@@ -385,7 +387,7 @@ public:
 		UInt8			pad11[3];		// 11
 
 		static Data *Create(TESObjectREFR *owner);
-		double GetInventoryWeight();
+		double GetInventoryWeight() const;
 	};
 
 	Data	*data;	// 0C
@@ -549,13 +551,12 @@ public:
 
 class ExtraFactionChangesMatcher
 {
-	TESFaction* pFaction;
-	ExtraFactionChanges* xFactionChanges;
+	TESFaction			*pFaction;
+	ExtraFactionChanges	*xFactionChanges;
+
 public:
-	ExtraFactionChangesMatcher(TESFaction* faction, ExtraFactionChanges* FactionChanges) : pFaction(faction), xFactionChanges(FactionChanges) {}
-	bool Accept(FactionListData *data) {
-		return (data->faction == pFaction) ? true : false;
-	}
+	ExtraFactionChangesMatcher(TESFaction *faction, ExtraFactionChanges *FactionChanges) : pFaction(faction), xFactionChanges(FactionChanges) {}
+	bool Accept(FactionListData *data) const {return data->faction == pFaction;}
 };
 
 // 14
@@ -619,6 +620,8 @@ public:
 		UInt8			type;			// 0E
 		UInt8			pad0F;			// 0F
 		TESReputation	*reputation;	// 10
+
+		const char *GetTexturePath() const {return (flags & 2) ? ((const char**)0x11A0404)[type] : (const char*)0x1075030;}
 	};
 	MarkerData		*data;	// 0C
 };
@@ -985,11 +988,11 @@ class ExtraDismemberedLimbs : public BSExtraData
 public:
 	struct DismemberedLimb
 	{
-		UInt8				bodyPartID;
-		UInt8				explodeChance;
-		bool				explodeOnly;
-		UInt8				byte03;
-		BSSimpleArray<void*>	*array04;
+		UInt8							bodyPartID;
+		UInt8							explodeChance;
+		bool							explodeOnly;
+		UInt8							byte03;
+		BSSimpleArray<TESBoundObject*>	array04;
 	};
 
 	UInt16							dismemberedMask;	// 0C

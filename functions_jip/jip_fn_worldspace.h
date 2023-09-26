@@ -53,32 +53,30 @@ bool Cmd_GetWorldspaceClimate_Execute(COMMAND_ARGS)
 bool Cmd_SetWorldspaceClimate_Execute(COMMAND_ARGS)
 {
 	TESWorldSpace *wldSpc;
-	TESClimate *climate = NULL;
+	TESClimate *climate = nullptr;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &wldSpc, &climate) && (!climate || IS_ID(climate, TESClimate)))
 	{
 		if (wldSpc->parent && (wldSpc->parentFlags & 16))
 			wldSpc->parentFlags -= 16;
 		wldSpc->climate = climate;
-		Sky *currSky = Sky::Get();
-		if (!currSky || !g_thePlayer->parentCell)
-			return true;
-		TESWorldSpace *pcWspc = g_thePlayer->parentCell->worldSpace;
-		if (!pcWspc) return true;
-		while (pcWspc->parent && (pcWspc->parentFlags & 16))
-			pcWspc = pcWspc->parent;
-		if (pcWspc == wldSpc)
-			currSky->currClimate = climate;
+		if (Sky *currSky = Sky::Get(); currSky && g_thePlayer->parentCell)
+			if (TESWorldSpace *pcWspc = g_thePlayer->parentCell->worldSpace)
+			{
+				while (pcWspc->parent && (pcWspc->parentFlags & 16))
+					pcWspc = pcWspc->parent;
+				if (pcWspc == wldSpc)
+					currSky->currClimate = climate;
+			}
 	}
 	return true;
 }
 
 bool Cmd_GetWorldspaceNoiseTexture_Execute(COMMAND_ARGS)
 {
-	const char *resStr;
+	const char *resStr = nullptr;
 	TESWorldSpace *wspc;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &wspc))
 		resStr = wspc->waterNoiseTexture.ddsPath.m_data;
-	else resStr = NULL;
 	AssignString(PASS_COMMAND_ARGS, resStr);
 	return true;
 }
@@ -94,17 +92,17 @@ bool Cmd_SetWorldspaceNoiseTexture_Execute(COMMAND_ARGS)
 
 bool Cmd_GetWorldspaceWaterType_Execute(COMMAND_ARGS)
 {
-	REFR_RES = 0;
 	TESWorldSpace *wldSpc;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &wldSpc) && wldSpc->waterFormFirst)
 		REFR_RES = wldSpc->waterFormFirst->refID;
+	else REFR_RES = 0;
 	return true;
 }
 
 bool Cmd_SetWorldspaceWaterType_Execute(COMMAND_ARGS)
 {
 	TESWorldSpace *wldSpc;
-	TESWaterForm *water = NULL;
+	TESWaterForm *water = nullptr;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &wldSpc, &water) && (!water || IS_ID(water, TESWaterForm)))
 		wldSpc->waterFormFirst = water;
 	return true;
@@ -112,17 +110,17 @@ bool Cmd_SetWorldspaceWaterType_Execute(COMMAND_ARGS)
 
 bool Cmd_GetWorldspaceImagespace_Execute(COMMAND_ARGS)
 {
-	REFR_RES = 0;
 	TESWorldSpace *wldSpc;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &wldSpc) && wldSpc->imageSpace)
 		REFR_RES = wldSpc->imageSpace->refID;
+	else REFR_RES = 0;
 	return true;
 }
 
 bool Cmd_SetWorldspaceImagespace_Execute(COMMAND_ARGS)
 {
 	TESWorldSpace *wldSpc;
-	TESImageSpace *imgSpc = NULL;
+	TESImageSpace *imgSpc = nullptr;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &wldSpc, &imgSpc) && (!imgSpc || IS_ID(imgSpc, TESImageSpace)))
 		wldSpc->imageSpace = imgSpc;
 	return true;
@@ -130,9 +128,9 @@ bool Cmd_SetWorldspaceImagespace_Execute(COMMAND_ARGS)
 
 bool Cmd_GetWorldspacePersistentCell_Execute(COMMAND_ARGS)
 {
-	REFR_RES = 0;
 	TESWorldSpace *wldSpc;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &wldSpc) && wldSpc->cell)
 		REFR_RES = wldSpc->cell->refID;
+	else REFR_RES = 0;
 	return true;
 }

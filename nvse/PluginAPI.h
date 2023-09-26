@@ -399,7 +399,7 @@ struct NVSEArrayVarInterface
 			else num = rhs.num;
 		}
 
-		~ElementR() {if (dataType == kType_String) GameHeapFree(str);}
+		~ElementR() {if (dataType == kType_String) Game_HeapFree(str);}
 
 		ElementR& operator=(double _num) {dataType = kType_Numeric; num = _num; return *this;}
 		ElementR& operator=(TESForm *_form) {dataType = kType_Form; form = _form; return *this;}
@@ -408,7 +408,7 @@ struct NVSEArrayVarInterface
 		ElementR& operator=(const Element &rhs)
 		{
 			if (dataType == kType_String)
-				GameHeapFree(str);
+				Game_HeapFree(str);
 			dataType = rhs.dataType;
 			if (dataType == kType_String)
 				str = CopyCString(rhs.str);
@@ -532,10 +532,14 @@ struct NVSEScriptInterface
 
 	bool	(*CallFunction)(Script *funcScript, TESObjectREFR *callingObj, TESObjectREFR *container, NVSEArrayVarInterface::Element *result, UInt8 numArgs, ...);
 	int		(*GetFunctionParams)(Script *funcScript, UInt8 *paramTypesOut);
-	bool	(*ExtractArgsEx)(ParamInfo *paramInfo, UInt8 *scriptDataIn, UInt32 *scriptDataOffset, Script *scriptObj, ScriptLocals *eventList, ...);
-	bool	(*ExtractFormatStringArgs)(UInt32 fmtStringPos, char *buffer, ParamInfo *paramInfo, UInt8 *scriptDataIn, UInt32 *scriptDataOffset,
-										Script *scriptObj, ScriptLocals *eventList, UInt32 maxParams, ...);
+	bool	(*ExtractArgsEx)(COMMAND_ARGS_EX, ...);
+	bool	(*ExtractFormatStringArgs)(UInt32 fmtStringPos, char *buffer, COMMAND_ARGS_EX, UInt32 maxParams, ...);
 	bool	(*CallFunctionAlt)(Script *funcScript, TESObjectREFR *callingObj, UInt8 numArgs, ...);
+
+	Script*	(*CompileScript)(const char *scriptText);
+	Script*	(*CompileExpression)(const char *expression);
+
+	size_t	(__stdcall *pDecompileToBuffer)(Script *pScript, FILE *pStream, char *pBuffer);
 
 	void operator=(const NVSEScriptInterface &rhs) {COPY_BYTES(this, &rhs, sizeof(NVSEScriptInterface));}
 };
@@ -897,6 +901,11 @@ struct PluginScriptToken
 	int GetInt()
 	{
 		return int(s_expEvalUtils.ScriptTokenGetFloat(this));
+	}
+
+	UInt32 GetUInt()
+	{
+		return cvtd2ul(s_expEvalUtils.ScriptTokenGetFloat(this));
 	}
 
 	bool GetBool()

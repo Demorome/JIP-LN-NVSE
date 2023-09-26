@@ -20,40 +20,40 @@ bool Cmd_GetSoundTraitNumeric_Execute(COMMAND_ARGS)
 	*result = 0;
 	TESSound *sound;
 	UInt32 traitID;
-	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &sound, &traitID)) return true;
-	switch (traitID)
-	{
-	case 0:
-		*result = sound->minAttenuationDist * 5.0;
-		break;
-	case 1:
-		*result = sound->maxAttenuationDist * 100.0;
-		break;
-	case 2:
-		*result = sound->frequencyAdj;
-		break;
-	case 3:
-		*result = sound->staticAttenuation * -0.01;
-		break;
-	case 4:
-		*result = sound->endsAt * (1434 / 255.0F);
-		break;
-	case 5:
-		*result = sound->startsAt * (1434 / 255.0F);
-		break;
-	case 6:
-	case 7:
-	case 8:
-	case 9:
-	case 10:
-		*result = sound->attenuationCurve[traitID - 6];
-		break;
-	case 11:
-		*result = sound->reverbAttenuation;
-		break;
-	case 12:
-		*result = (int)sound->priority;
-	}
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &sound, &traitID))
+		switch (traitID)
+		{
+			case 0:
+				*result = sound->minAttenuationDist * 5.0;
+				break;
+			case 1:
+				*result = sound->maxAttenuationDist * 100.0;
+				break;
+			case 2:
+				*result = sound->frequencyAdj;
+				break;
+			case 3:
+				*result = sound->staticAttenuation * -0.01;
+				break;
+			case 4:
+				*result = sound->endsAt * (1434 / 255.0F);
+				break;
+			case 5:
+				*result = sound->startsAt * (1434 / 255.0F);
+				break;
+			case 6:
+			case 7:
+			case 8:
+			case 9:
+			case 10:
+				*result = sound->attenuationCurve[traitID - 6];
+				break;
+			case 11:
+				*result = sound->reverbAttenuation;
+				break;
+			case 12:
+				*result = (int)sound->priority;
+		}
 	return true;
 }
 
@@ -64,108 +64,101 @@ bool Cmd_SetSoundTraitNumeric_Execute(COMMAND_ARGS)
 	float val;
 	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &sound, &traitID, &val)) return true;
 	int intVal = (int)val;
-	BSGameSound *gameSound;
 	switch (traitID)
 	{
-	case 0:
-		if (intVal > 1275)
-			intVal = 255;
-		else if (intVal < 0)
-			intVal = 0;
-		else intVal /= 5;
-		sound->minAttenuationDist = intVal;
-		break;
-	case 1:
-		if (intVal > 25500)
-			intVal = 255;
-		else if (intVal < 0)
-			intVal = 0;
-		else intVal /= 100;
-		sound->maxAttenuationDist = intVal;
-		break;
-	case 2:
-	{
-		if (intVal > 100)
-			intVal = 100;
-		else if (intVal < -100)
-			intVal = -100;
-		sound->frequencyAdj = intVal;
-		val = GetFrequencyModifier(sound);
-		for (auto sndIter = BSAudioManager::Get()->playingSounds.Begin(); sndIter; ++sndIter)
+		case 0:
+			if (intVal > 1275)
+				intVal = 255;
+			else if (intVal < 0)
+				intVal = 0;
+			else intVal /= 5;
+			sound->minAttenuationDist = intVal;
+			break;
+		case 1:
+			if (intVal > 25500)
+				intVal = 255;
+			else if (intVal < 0)
+				intVal = 0;
+			else intVal /= 100;
+			sound->maxAttenuationDist = intVal;
+			break;
+		case 2:
 		{
-			gameSound = sndIter.Get();
-			if (gameSound && (gameSound->sourceSound == sound))
-				gameSound->frequencyMod = val;
+			if (intVal > 100)
+				intVal = 100;
+			else if (intVal < -100)
+				intVal = -100;
+			sound->frequencyAdj = intVal;
+			val = GetFrequencyModifier(sound);
+			for (auto sndIter = BSAudioManager::Get()->playingSounds.Begin(); sndIter; ++sndIter)
+				if (BSGameSound *gameSound = sndIter.Get(); gameSound && (gameSound->sourceSound == sound))
+					gameSound->frequencyMod = val;
+			break;
 		}
-		break;
-	}
-	case 3:
-	{
-		if (intVal < 0)
-			intVal = -intVal;
-		if (intVal > 100)
-			intVal = 10000;
-		else intVal *= 100;
-		sound->staticAttenuation = intVal;
-		for (auto sndIter = BSAudioManager::Get()->playingSounds.Begin(); sndIter; ++sndIter)
+		case 3:
 		{
-			gameSound = sndIter.Get();
-			if (gameSound && (gameSound->sourceSound == sound))
-				gameSound->staticAttenuation = intVal;
+			if (intVal < 0)
+				intVal = -intVal;
+			if (intVal > 100)
+				intVal = 10000;
+			else intVal *= 100;
+			sound->staticAttenuation = intVal;
+			for (auto sndIter = BSAudioManager::Get()->playingSounds.Begin(); sndIter; ++sndIter)
+				if (BSGameSound *gameSound = sndIter.Get(); gameSound && (gameSound->sourceSound == sound))
+					gameSound->staticAttenuation = intVal;
+			break;
 		}
-		break;
-	}
-	case 4:
-		if (intVal > 1434)
-			intVal = 255;
-		else if (intVal < 0)
-			intVal = 0;
-		else intVal = val * (255 / 1434.0F);
-		sound->endsAt = intVal;
-		break;
-	case 5:
-		if (intVal > 1434)
-			intVal = 255;
-		else if (intVal < 0)
-			intVal = 0;
-		else intVal = val * (255 / 1434.0F);
-		sound->startsAt = intVal;
-		break;
-	case 6:
-	case 7:
-	case 8:
-	case 9:
-	case 10:
-		if (intVal > 100)
-			intVal = 100;
-		else if (intVal < 0)
-			intVal = 0;
-		sound->attenuationCurve[traitID - 6] = intVal;
-		break;
-	case 11:
-		if (intVal > 100)
-			intVal = 100;
-		else if (intVal < 0)
-			intVal = 0;
-		sound->reverbAttenuation = intVal;
-		break;
-	case 12:
-		if (intVal > 255)
-			intVal = 255;
-		else if (intVal < 0)
-			intVal = 0;
-		sound->priority = intVal;
+		case 4:
+			if (intVal > 1434)
+				intVal = 255;
+			else if (intVal < 0)
+				intVal = 0;
+			else intVal = val * (255 / 1434.0F);
+			sound->endsAt = intVal;
+			break;
+		case 5:
+			if (intVal > 1434)
+				intVal = 255;
+			else if (intVal < 0)
+				intVal = 0;
+			else intVal = val * (255 / 1434.0F);
+			sound->startsAt = intVal;
+			break;
+		case 6:
+		case 7:
+		case 8:
+		case 9:
+		case 10:
+			if (intVal > 100)
+				intVal = 100;
+			else if (intVal < 0)
+				intVal = 0;
+			sound->attenuationCurve[traitID - 6] = intVal;
+			break;
+		case 11:
+			if (intVal > 100)
+				intVal = 100;
+			else if (intVal < 0)
+				intVal = 0;
+			sound->reverbAttenuation = intVal;
+			break;
+		case 12:
+			if (intVal > 255)
+				intVal = 255;
+			else if (intVal < 0)
+				intVal = 0;
+			sound->priority = intVal;
 	}
 	return true;
 }
 
 bool Cmd_GetSoundFlag_Execute(COMMAND_ARGS)
 {
-	*result = 0;
 	TESSound *sound;
 	UInt32 flagID;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &sound, &flagID) && (flagID <= 31))
-		*result = (sound->soundFlags & (1 << flagID)) ? 1 : 0;
+		*result = (sound->soundFlags & (1 << flagID)) != 0;
+	else *result = 0;
 	return true;
 }
 
@@ -180,11 +173,10 @@ bool Cmd_SetSoundFlag_Execute(COMMAND_ARGS)
 
 bool Cmd_GetSoundSourceFile_Execute(COMMAND_ARGS)
 {
-	const char *resStr;
+	const char *resStr = nullptr;
 	TESSound *sound;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &sound))
 		resStr = sound->soundFile.path.m_data;
-	else resStr = NULL;
 	AssignString(PASS_COMMAND_ARGS, resStr);
 	return true;
 }
@@ -235,11 +227,10 @@ bool __fastcall PlayingSoundsIterator(TESSound *soundForm, bool doStop, TESObjec
 bool Cmd_IsSoundPlaying_Execute(COMMAND_ARGS)
 {
 	TESSound *soundForm;
-	TESObjectREFR *refr = NULL;
-	bool bResult = false;
-	if (ExtractArgsEx(EXTRACT_ARGS_EX, &soundForm, &refr))
-		bResult = PlayingSoundsIterator(soundForm, false, refr);
-	*result = bResult;
+	TESObjectREFR *refr = nullptr;
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &soundForm, &refr) && PlayingSoundsIterator(soundForm, false, refr))
+		*result = 1;
+	else *result = 0;
 	return true;
 }
 
@@ -267,7 +258,7 @@ bool Cmd_GetSoundPlayers_Execute(COMMAND_ARGS)
 bool Cmd_StopSound_Execute(COMMAND_ARGS)
 {
 	TESSound *soundForm;
-	TESObjectREFR *refr = NULL;
+	TESObjectREFR *refr = nullptr;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &soundForm, &refr))
 		PlayingSoundsIterator(soundForm, true, refr);
 	return true;
@@ -276,7 +267,7 @@ bool Cmd_StopSound_Execute(COMMAND_ARGS)
 bool Cmd_IsMusicPlaying_Execute(COMMAND_ARGS)
 {
 	UInt8 playState = 0;
-	TESForm *form = NULL;
+	TESForm *form = nullptr;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &form))
 	{
 		PlayingMusic *playingMus = PlayingMusic::Get();
@@ -346,9 +337,7 @@ bool Cmd_PlaySound3DNode_Execute(COMMAND_ARGS)
 	TESSound *soundForm;
 	char nodeName[0x40];
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &soundForm, &nodeName))
-	{
-		NiNode *targetNode = thisObj->GetNode2(nodeName);
-		if (targetNode)
+		if (NiNode *targetNode = thisObj->GetNode2(nodeName))
 		{
 			Sound sound;
 			BSAudioManager::Get()->InitSoundForm(sound, soundForm->refID, 0x102);
@@ -359,6 +348,5 @@ bool Cmd_PlaySound3DNode_Execute(COMMAND_ARGS)
 				sound.Play();
 			}
 		}
-	}
 	return true;
 }

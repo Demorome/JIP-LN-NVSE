@@ -34,6 +34,7 @@
 #define ExtractArgsEx g_script.ExtractArgsEx
 #define ExtractFormatStringArgs g_script.ExtractFormatStringArgs
 #define CallFunction g_script.CallFunctionAlt
+#define DecompileToBuffer g_script.pDecompileToBuffer
 
 typedef void (*_CaptureLambdaVars)(Script* scriptLambda);
 extern _CaptureLambdaVars CaptureLambdaVars;
@@ -51,7 +52,7 @@ namespace GameGlobals
 	__forceinline SpellItem *PipBoyLight() {return *(SpellItem**)0x11C358C;}
 	__forceinline TESDescription **CurrentDescription() {return (TESDescription**)0x11C5490;}
 	__forceinline String *CurrentDescriptionText() {return (String*)0x11C5498;}
-	__forceinline NiTPointerMap<TESForm> *AllFormsMap() {return *(NiTPointerMap<TESForm>**)0x11C54C0;}
+	__forceinline NiTPtrMap<TESForm> *AllFormsMap() {return *(NiTPtrMap<TESForm>**)0x11C54C0;}
 	__forceinline NiTStringPointerMap<TESForm> *EditorIDsMap() {return *(NiTStringPointerMap<TESForm>**)0x11C54C8;}
 	__forceinline BSTCaseInsensitiveStringMap<void*> *IdleAnimsDirectoryMap() {return *(BSTCaseInsensitiveStringMap<void*>**)0x11CB6A0;}
 	__forceinline BSSimpleArray<TESRecipeCategory*> *RecipeMenuCategories() {return (BSSimpleArray<TESRecipeCategory*>*)0x11D8F08;}
@@ -65,6 +66,7 @@ namespace GameGlobals
 	__forceinline tList<ListBox<int>> *ActiveListBoxes() {return (tList<ListBox<int>>*)0x11D8B54;}
 	__forceinline tList<GradualSetFloat> *QueuedGradualSetFloat() {return (tList<GradualSetFloat>*)0x11F3348;}
 	__forceinline RadioEntry *PipboyRadio() {return *(RadioEntry**)0x11DD42C;}
+	__forceinline const char *GetConfigDirectory() {return (const char*)0x1202FA0;}
 };
 
 extern NiNode *s_pc1stPersonNode, *g_cursorNode;
@@ -89,19 +91,19 @@ __forceinline TESObjectREFR *GetCdBodyRef(hkpWorldObject *object)
 {
 	return CdeclCall<TESObjectREFR*>(0x62B4E0, &object->cdBody);
 }
-__forceinline float ApplyAmmoEffects(UInt32 effType, AmmoEffectList *effList, float baseValue)
+__forceinline float ApplyAmmoEffects(AmmoEffectID effType, AmmoEffectList *effList, float baseValue)
 {
 	return CdeclCall<float>(0x59A030, effType, effList, baseValue);
 }
-__forceinline void ApplyPerkModifiers(UInt32 entryPointID, TESObjectREFR *perkOwner, float *baseValue)
+__forceinline void ApplyPerkModifiers(PerkEntryPointID entryPointID, TESObjectREFR *perkOwner, float *baseValue)
 {
 	CdeclCall(0x5E58F0, entryPointID, perkOwner, baseValue);
 }
-__forceinline void ApplyPerkModifiers(UInt32 entryPointID, TESObjectREFR *perkOwner, TESForm *filter1, float *baseValue)
+__forceinline void ApplyPerkModifiers(PerkEntryPointID entryPointID, TESObjectREFR *perkOwner, TESForm *filter1, float *baseValue)
 {
 	CdeclCall(0x5E58F0, entryPointID, perkOwner, filter1, baseValue);
 }
-__forceinline void ApplyPerkModifiers(UInt32 entryPointID, TESObjectREFR *perkOwner, TESForm *filter1, TESForm *filter2, float *baseValue)
+__forceinline void ApplyPerkModifiers(PerkEntryPointID entryPointID, TESObjectREFR *perkOwner, TESForm *filter1, TESForm *filter2, float *baseValue)
 {
 	CdeclCall(0x5E58F0, entryPointID, perkOwner, filter1, filter2, baseValue);
 }
@@ -117,20 +119,9 @@ __forceinline void *PurgeTerminalModel()
 {
 	return CdeclCall<void*>(ADDR_PurgeTerminalModel);
 }
-__forceinline TileMenu *ShowQuantityMenu(int maxCount, void (*callback)(int), int defaultCount)
-{
-	return CdeclCall<TileMenu*>(0x7ABA00, maxCount, callback, defaultCount);
-}
-__forceinline void *NiAllocator(UInt32 size)
-{
-	return CdeclCall<void*>(0xAA13E0, size);
-}
-__forceinline void *NiDeallocator(void *blockPtr, UInt32 size)
-{
-	return CdeclCall<void*>(0xAA1460, blockPtr, size);
-}
 
 TESForm* __stdcall LookupFormByRefID(UInt32 refID);
+TESForm* __fastcall LookupFormByEDID(const char *edidStr);
 UInt32 __stdcall HasChangeData(UInt32 refID);
 bool __fastcall GetResolvedModIndex(UInt8 *pModIdx);
 UInt32 __fastcall GetResolvedRefID(UInt32 *refID);
@@ -148,7 +139,23 @@ enum
 	kSerializedFlag_NoHardcoreTracking =	1 << 0,
 };
 
-extern UInt32 s_serializedFlags;
+struct JIPSerializedVars
+{
+	enum
+	{
+		kSzVars_Version =	1
+	};
+
+	UInt32		serializedFlags;
+	float		dmgArmorMaxPercent;
+
+	void Reset()
+	{
+		serializedFlags = 0;
+		dmgArmorMaxPercent = 1.0F;
+	}
+};
+extern JIPSerializedVars s_serializedVars;
 
 struct QueuedCmdCall
 {
@@ -158,14 +165,12 @@ struct QueuedCmdCall
 	UInt32			numArgs;	// 0C
 	FunctionArg		args[4];	// 10
 
-	QueuedCmdCall(void *_cmdAddr, UInt32 _thisObj, UInt32 _numArgs, ...) : opcode(0x2B), cmdAddr(_cmdAddr), thisObj(_thisObj), numArgs(_numArgs)
+	QueuedCmdCall(void *_cmdAddr, UInt32 _thisObj) : opcode(0x2B), cmdAddr(_cmdAddr), thisObj(_thisObj), numArgs(0) {}
+
+	void PushArg(FunctionArg arg)
 	{
-		if (!numArgs) return;
-		va_list args;
-		va_start(args, numArgs);
-		for (UInt32 argIdx = 0; argIdx < numArgs; argIdx++)
-			args[argIdx] = va_arg(args, UInt32);
-		va_end(args);
+		if (numArgs < 4)
+			args[numArgs++] = arg;
 	}
 
 	bool QueueCall() {return ThisCall<bool>(0x9054A0, g_scrapHeapQueue->taskQueue, this);}
@@ -189,6 +194,8 @@ public:
 	~LambdaVarContext() {UncaptureLambdaVars(scriptLambda);}
 
 	inline LambdaVarContext& operator=(const LambdaVarContext &other) {Set(other.scriptLambda); return *this;}
+
+	inline Script* operator()() const {return scriptLambda;}
 
 	inline operator Script*() const {return scriptLambda;}
 
@@ -270,7 +277,8 @@ struct AppearanceUndo
 		while (partIter = partIter->next);
 		if (numParts)
 		{
-			BGSHeadPart **ptr = headParts = (BGSHeadPart**)malloc(numParts * 4);
+			BGSHeadPart **ptr = (BGSHeadPart**)malloc(numParts * 4);
+			headParts = ptr;
 			partIter = npc->headPart.Head();
 			do
 			{
@@ -295,17 +303,8 @@ struct AppearanceUndo
 		npc->hair = hair;
 		npc->eyes = eyes;
 		npc->headPart.RemoveAll();
-		if (numParts)
-		{
-			BGSHeadPart **ptr = headParts;
-			UInt8 idx = numParts;
-			do
-			{
-				npc->headPart.Prepend(*ptr);
-				ptr++;
-			}
-			while (--idx);
-		}
+		for (UInt32 idx = 0; idx < numParts; idx++)
+			npc->headPart.Prepend(headParts[idx]);
 	}
 
 	void Destroy()
@@ -433,6 +432,19 @@ public:
 		else *this = value.num;
 	}
 
+	inline bool operator==(const AuxVariableValue &rhs) const
+	{
+		if (type != rhs.type)
+			return false;
+		if (type == 1)
+			return num == rhs.num;
+		if (type == 2)
+			return refID == rhs.refID;
+		if (!alloc || !length)
+			return !rhs.alloc || !rhs.length;
+		return rhs.alloc && (length == rhs.length) && !StrCompareCS(str, rhs.str);
+	}
+
 	ArrayElementL GetAsElement() const
 	{
 		if (type == 2) return ArrayElementL(LookupFormByRefID(refID));
@@ -440,27 +452,29 @@ public:
 		return ArrayElementL(num);
 	}
 
-	__declspec(noinline) UInt32 ReadValData(UInt8 *bufPos)
+	__declspec(noinline) UInt8 *ReadValData(UInt8 *bufPos)
 	{
 		if (type == 1)
 		{
 			num = *(double*)bufPos;
-			return 8;
+			return bufPos + 8;
 		}
 		if (type == 2)
 		{
 			refID = GetResolvedRefID((UInt32*)bufPos);
-			return 4;
+			return bufPos + 4;
 		}
 		length = *(UInt16*)bufPos;
+		bufPos += 2;
 		if (length)
 		{
 			alloc = (length + 0x11) & 0xFFF0;
 			str = Pool_CAlloc(alloc);
-			COPY_BYTES(str, bufPos + 2, length);
+			COPY_BYTES(str, bufPos, length);
 			str[length] = 0;
+			bufPos += length;
 		}
-		return length + 2;
+		return bufPos;
 	}
 
 	void WriteValData() const
@@ -490,16 +504,9 @@ typedef UnorderedMap<char*, RefMapIDsMap, 4> RefMapVarsMap;
 typedef UnorderedMap<UInt32, RefMapVarsMap> RefMapModsMap;
 extern TempObject<RefMapModsMap> s_refMapArraysPerm, s_refMapArraysTemp;
 
+extern PrimitiveCS s_auxVarCS, s_refMapCS;
+
 UInt32 __fastcall GetSubjectID(TESForm *form, TESObjectREFR *thisObj);
-
-#define JIP_VARS_CS 1
-#define JIP_XDATA_CS 1
-
-#if JIP_XDATA_CS
-#define XDATA_CS ScopedLightCS cs((LightCS*)EXTRA_DATA_CS);
-#else
-#define XDATA_CS
-#endif
 
 struct AuxVarInfo
 {
@@ -510,24 +517,21 @@ struct AuxVarInfo
 
 	AuxVarInfo(TESForm *form, TESObjectREFR *thisObj, Script *scriptObj, char *pVarName)
 	{
-		if (!pVarName[0])
+		if (*pVarName)
 		{
-			ownerID = 0;
-			return;
+			if (ownerID = GetSubjectID(form, thisObj))
+			{
+				varName = pVarName;
+				isPerm = (varName[0] != '*');
+				modIndex = (varName[!isPerm] == '_') ? 0xFF : scriptObj->GetOverridingModIdx();
+			}
 		}
-		ownerID = GetSubjectID(form, thisObj);
-		if (ownerID)
-		{
-			varName = pVarName;
-			isPerm = (varName[0] != '*');
-			modIndex = (varName[!isPerm] == '_') ? 0xFF : scriptObj->GetOverridingModIdx();
-		}
+		else ownerID = 0;
 	}
 
-	AuxVarInfo(TESForm *form, TESObjectREFR *thisObj, Script *scriptObj, UInt8 type)
+	AuxVarInfo(TESForm *form, TESObjectREFR *thisObj, Script *scriptObj, UInt32 type)
 	{
-		ownerID = GetSubjectID(form, thisObj);
-		if (ownerID)
+		if (ownerID = GetSubjectID(form, thisObj))
 		{
 			isPerm = !(type & 1);
 			modIndex = (type > 1) ? 0xFF : scriptObj->GetOverridingModIdx();
@@ -535,6 +539,10 @@ struct AuxVarInfo
 	}
 
 	AuxVarModsMap& ModsMap() const {return isPerm ? s_auxVariablesPerm : s_auxVariablesTemp;}
+	AuxVarValsArr* __fastcall GetArray(bool addArr = false);
+	AuxVariableValue* __fastcall GetValue(SInt32 idx, bool addVal = false);
+
+	explicit operator bool() const {return ownerID != 0;}
 };
 
 struct RefMapInfo
@@ -544,11 +552,11 @@ struct RefMapInfo
 
 	RefMapInfo(Script *scriptObj, char *varName)
 	{
-		isPerm = (varName[0] != '*');
+		isPerm = (*varName != '*');
 		modIndex = (varName[!isPerm] == '_') ? 0xFF : scriptObj->GetOverridingModIdx();
 	}
 
-	RefMapInfo(Script *scriptObj, UInt8 type)
+	RefMapInfo(Script *scriptObj, UInt32 type)
 	{
 		isPerm = !(type & 1);
 		modIndex = (type > 1) ? 0xFF : scriptObj->GetOverridingModIdx();
@@ -725,8 +733,7 @@ struct TempArrayElements
 	TempArrayElements(NVSEArrayVar *srcArr)
 	{
 		doFree = true;
-		size = GetArraySize(srcArr);
-		if (size)
+		if (size = GetArraySize(srcArr))
 		{
 			elements = (ArrayElementR*)calloc(size, sizeof(ArrayElementR));
 			GetElements(srcArr, elements, nullptr);
@@ -758,8 +765,7 @@ struct ArrayData
 
 	ArrayData(NVSEArrayVar *srcArr, bool isPacked)
 	{
-		size = GetArraySize(srcArr);
-		if (size)
+		if (size = GetArraySize(srcArr))
 		{
 			vals = AuxBuffer::Get<ArrayElementR>(2, isPacked ? size : (size << 1));
 			keys = isPacked ? nullptr : (vals + size);
@@ -797,7 +803,7 @@ struct InventoryRef
 	bool				removed;		// 2D
 	UInt8				pad2E[2];		// 2E
 
-	SInt32 GetCount() {return entry->countDelta;}
+	SInt32 GetCount() const {return entry->countDelta;}
 	ExtraDataList *CreateExtraData();
 	ExtraDataList* __fastcall SplitFromStack(SInt32 maxStack = 1);
 };
@@ -815,8 +821,6 @@ ContChangesEntry* __fastcall GetHotkeyItemEntry(UInt8 index, ExtraDataList **out
 
 bool __fastcall ClearHotkey(UInt8 index);
 
-float __fastcall GetModBonuses(TESObjectREFR *wpnRef, UInt32 effectID);
-
 float __vectorcall GetLightAmountAtPoint(const NiVector3 &pos);
 
 struct AnimGroupClassify
@@ -827,8 +831,6 @@ struct AnimGroupClassify
 	UInt8	byte03;		// 03
 };
 extern const AnimGroupClassify kAnimGroupClassify[];
-
-extern TempObject<UnorderedMap<char*, Script*>> s_cachedScripts;
 
 namespace JIPScriptRunner
 {
@@ -844,14 +846,27 @@ namespace JIPScriptRunner
 		kRunOn_ExitGame =		'xg'
 	};
 
+	struct CachedSRScript
+	{
+		LambdaVarContext	script;
+		ScriptRunOn			runOn;
+
+		CachedSRScript(Script *_script, ScriptRunOn _runOn = kRunOn_Invalid) : script(_script), runOn(_runOn) {}
+	};
+
+	extern UInt8 initInProgress;
+
 	void Init();
+	bool RegisterScript(char *relPath);
 	void RunScripts(ScriptRunOn runOn1, ScriptRunOn runOn2 = kRunOn_Invalid);
 
-	void __fastcall RunScript(Script *script, int EDX, TESObjectREFR *callingRef);
+	void __fastcall RunScript(Script *script, int, TESObjectREFR *callingRef);
 	bool __fastcall RunScriptSource(char *scrSource, const char *scrName, bool capture = false);
 
 	void __fastcall LogCompileError(String &errorStr);
 };
+
+extern TempObject<UnorderedMap<const char*, JIPScriptRunner::CachedSRScript>> s_cachedScripts;
 
 extern TempObject<UnorderedMap<const char*, NiCamera*>> s_extraCamerasMap;
 
@@ -925,5 +940,3 @@ void InitMemUsageDisplay(UInt32 callDelay);
 #define NUM_ARGS_EX (scriptData[*opcodeOffsetPtr - 2] ? scriptData[*opcodeOffsetPtr] : 0)
 
 DEFINE_COMMAND_PLUGIN(EmptyCommand, 0, 3, kParams_ThreeOptionalInts);
-
-void __stdcall StoreOriginalData(UInt32 addr, UInt8 size);

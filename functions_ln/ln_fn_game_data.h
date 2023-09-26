@@ -30,93 +30,79 @@ tList<TESForm> *GetSourceList(UInt8 formType)
 	return &((tList<TESForm>*)&g_dataHandler->packageList)[listIdx];
 }
 
-void GetLoadedType(UInt32 formType, int index, tList<TESForm> *outList, TempElements *tmpElements)
+void GetLoadedType(UInt32 formType, UInt8 modIndex, tList<TESForm> *outList, TempElements *tmpElements)
 {
 	if (formType == kFormType_TESObjectCELL)
 	{
-		TESObjectCELL **cells = g_dataHandler->cellArray.data;
-		for (UInt32 count = g_dataHandler->cellArray.Length(); count; count--, cells++)
-		{
-			if ((index != -1) && (index != (*cells)->modIndex)) continue;
-			if (outList) outList->Prepend(*cells);
-			else tmpElements->Append(*cells);
-		}
+		auto &cellArr = g_dataHandler->cellArray;
+		for (UInt32 idx = 0; idx < cellArr.Size(); idx++)
+			if (TESObjectCELL *cell = cellArr[idx]; cell && ((modIndex == 0xFF) || (modIndex == cell->GetOverridingModIdx())))
+				if (outList) outList->Prepend(cell);
+				else tmpElements->Append(cell);
 	}
 	else if (formType == 301)
 	{
-		ListNode<TESWorldSpace> *wspcIter = g_dataHandler->worldSpaceList.Head();
-		TESWorldSpace *wspc;
-		ListNode<TESObjectREFR> *refrIter;
-		TESObjectREFR *refr;
+		auto wspcIter = g_dataHandler->worldSpaceList.Head();
 		do
 		{
-			if (!(wspc = wspcIter->data)) continue;
-			refrIter = wspc->cell->objectList.Head();
-			do
+			if (TESWorldSpace *wspc = wspcIter->data)
 			{
-				refr = refrIter->data;
-				if (!refr || !refr->extraDataList.HasType(kXData_ExtraMapMarker) || ((index != -1) && (index != refr->modIndex))) continue;
-				if (outList) outList->Prepend(refr);
-				else tmpElements->Append(refr);
+				auto refrIter = wspc->cell->objectList.Head();
+				do
+				{
+					if (TESObjectREFR *refr = refrIter->data; refr && refr->extraDataList.HasType(kXData_ExtraMapMarker) &&
+						((modIndex == 0xFF) || (modIndex == refr->GetOverridingModIdx())))
+						if (outList) outList->Prepend(refr);
+						else tmpElements->Append(refr);
+				}
+				while (refrIter = refrIter->next);
 			}
-			while (refrIter = refrIter->next);
 		}
 		while (wspcIter = wspcIter->next);
 	}
 	else if (formType == 302)
 	{
-		TESObjectCELL **cells = g_dataHandler->cellArray.data;
-		ListNode<TESObjectREFR> *refrIter;
-		TESObjectREFR *refr;
-		for (UInt32 count = g_dataHandler->cellArray.Length(); count; count--, cells++)
-		{
-			refrIter = (*cells)->objectList.Head();
-			do
+		auto &cellArr = g_dataHandler->cellArray;
+		for (UInt32 idx = 0; idx < cellArr.Size(); idx++)
+			if (TESObjectCELL *cell = cellArr[idx])
 			{
-				refr = refrIter->data;
-				if (!refr || !refr->extraDataList.HasType(kXData_ExtraRadioData) || ((index != -1) && (index != refr->modIndex))) continue;
-				if (outList) outList->Prepend(refr);
-				else tmpElements->Append(refr);
+				auto refrIter = cell->objectList.Head();
+				do
+				{
+					if (TESObjectREFR *refr = refrIter->data; refr && refr->extraDataList.HasType(kXData_ExtraRadioData) &&
+						((modIndex == 0xFF) || (modIndex == refr->GetOverridingModIdx())))
+						if (outList) outList->Prepend(refr);
+						else tmpElements->Append(refr);
+				}
+				while (refrIter = refrIter->next);
 			}
-			while (refrIter = refrIter->next);
-		}
 	}
 	else if (formType < kFormType_Max)
-	{
-		tList<TESForm> *sourceList = GetSourceList(formType);
-		TESForm *form;
-		if (sourceList)
+		if (tList<TESForm> *sourceList = GetSourceList(formType))
 		{
-			ListNode<TESForm> *iter = sourceList->Head();
+			auto iter = sourceList->Head();
 			do
 			{
-				form = iter->data;
-				if (!form || ((index != -1) && (index != form->modIndex))) continue;
-				if (outList) outList->Prepend(form);
-				else tmpElements->Append(form);
+				if (TESForm *form = iter->data; form && ((modIndex == 0xFF) || (modIndex == form->GetOverridingModIdx())))
+					if (outList) outList->Prepend(form);
+					else tmpElements->Append(form);
 			}
 			while (iter = iter->next);
 		}
 		else if (kTypeListJmpTbl[formType] == 0x80)
 		{
 			for (TESBoundObject *object = g_dataHandler->boundObjectList->first; object; object = object->next)
-			{
-				if ((object->typeID != formType) || ((index != -1) && (index != object->modIndex))) continue;
-				if (outList) outList->Prepend(object);
-				else tmpElements->Append(object);
-			}
+				if ((object->typeID == formType) && ((modIndex == 0xFF) || (modIndex == object->GetOverridingModIdx())))
+					if (outList) outList->Prepend(object);
+					else tmpElements->Append(object);
 		}
 		else
 		{
 			for (auto mIter = GameGlobals::AllFormsMap()->Begin(); mIter; ++mIter)
-			{
-				form = mIter.Get();
-				if (!form || (form->typeID != formType) || ((index != -1) && (index != form->modIndex))) continue;
-				if (outList) outList->Prepend(form);
-				else tmpElements->Append(form);
-			}
+				if (TESForm *form = mIter.Get(); form && (form->typeID == formType) && ((modIndex == 0xFF) || (modIndex == form->GetOverridingModIdx())))
+					if (outList) outList->Prepend(form);
+					else tmpElements->Append(form);
 		}
-	}
 }
 
 bool Cmd_GetLoadedType_Execute(COMMAND_ARGS)
@@ -126,8 +112,9 @@ bool Cmd_GetLoadedType_Execute(COMMAND_ARGS)
 	int index = -1;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &listForm, &formType, &index, &noClear))
 	{
+		UInt8 modIndex = ((index >= 0) && (index < 255)) ? (UInt8)index : 0xFF;
 		if (!noClear) listForm->list.RemoveAll();
-		GetLoadedType(formType, index, &listForm->list, NULL);
+		GetLoadedType(formType, modIndex, &listForm->list, NULL);
 	}
 	return true;
 }
@@ -139,8 +126,9 @@ bool Cmd_GetLoadedTypeArray_Execute(COMMAND_ARGS)
 	int index = -1;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &formType, &index))
 	{
+		UInt8 modIndex = ((index >= 0) && (index < 255)) ? (UInt8)index : 0xFF;
 		TempElements *tmpElements = GetTempElements();
-		GetLoadedType(formType, index, NULL, tmpElements);
+		GetLoadedType(formType, modIndex, NULL, tmpElements);
 		*result = (int)CreateArray(tmpElements->Data(), tmpElements->Size(), scriptObj);
 	}
 	return true;
@@ -192,18 +180,13 @@ bool Cmd_Search_Execute(COMMAND_ARGS)
 		validTypes[filter] = true;
 		pValidTypes = validTypes;
 	}
-	TESForm *form;
-	const char *pName, *pEDID;
 	for (auto frmIter = GameGlobals::AllFormsMap()->Begin(); frmIter; ++frmIter)
-	{
-		form = frmIter.Get();
-		if (!form || !pValidTypes[form->typeID])
-			continue;
-		pName = form->GetTheName();
-		pEDID = form->GetEditorID();
-		if ((*pName && SubStrCI(pName, toFind)) || (*pEDID && SubStrCI(pEDID, toFind)))
-			Console_Print("[%08X]  %s  %s  %s", form->refID, TypeSignature::Array()[120 - form->typeID].signature, pEDID, pName);
-	}
+		if (TESForm *form = frmIter.Get(); form && pValidTypes[form->typeID])
+		{
+			const char *pName = form->GetTheName(), *pEDID = form->GetEditorID();
+			if ((*pName && SubStrCI(pName, toFind)) || (*pEDID && SubStrCI(pEDID, toFind)))
+				Console_Print("[%08X]  %s  %s  %s", form->refID, TypeSignature::Array()[120 - form->typeID].signature, pEDID, pName);
+		}
 	return true;
 }
 
@@ -232,7 +215,7 @@ bool Cmd_GetFormMods_Execute(COMMAND_ARGS)
 		form = thisObj->baseForm;
 	}
 	TempElements *tmpElements = GetTempElements();
-	ListNode<ModInfo> *iter = form->mods.Head();
+	auto iter = form->mods.Head();
 	do
 	{
 		if (iter->data) tmpElements->Append(iter->data->name);
@@ -249,16 +232,13 @@ bool Cmd_GetFormRefs_Execute(COMMAND_ARGS)
 	UInt32 scanGrid = 0;
 	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &form, &scanGrid)) return true;
 	TempElements *tmpElements = GetTempElements();
-	ListNode<TESObjectREFR> *refrIter;
-	TESObjectREFR *refr;
 	for (auto intrIter = g_dataHandler->cellArray.Begin(); intrIter; ++intrIter)
 	{
 		if (!*intrIter) continue;
-		refrIter = intrIter->objectList.Head();
+		auto refrIter = intrIter->objectList.Head();
 		do
 		{
-			refr = refrIter->data;
-			if (refr && (refr->baseForm == form))
+			if (TESObjectREFR *refr = refrIter->data; refr && (refr->baseForm == form))
 				tmpElements->Append(refr);
 		}
 		while (refrIter = refrIter->next);
@@ -268,29 +248,28 @@ bool Cmd_GetFormRefs_Execute(COMMAND_ARGS)
 		for (auto gridIter = g_TES->gridCellArray->Begin(); gridIter; ++gridIter)
 		{
 			if (!*gridIter) continue;
-			refrIter = gridIter->objectList.Head();
+			auto refrIter = gridIter->objectList.Head();
 			do
 			{
-				refr = refrIter->data;
-				if (refr && (refr->baseForm == form) && !(refr->flags & TESObjectREFR::kFlags_Persistent))
+				if (TESObjectREFR *refr = refrIter->data; refr && (refr->baseForm == form) && !(refr->flags & TESObjectREFR::kFlags_Persistent))
 					tmpElements->Append(refr);
 			}
 			while (refrIter = refrIter->next);
 		}
 	}
-	ListNode<TESWorldSpace> *wspcIter = g_dataHandler->worldSpaceList.Head();
-	TESWorldSpace *wspc;
+	auto wspcIter = g_dataHandler->worldSpaceList.Head();
 	do
 	{
-		if (!(wspc = wspcIter->data) || !wspc->cell) continue;
-		refrIter = wspc->cell->objectList.Head();
-		do
+		if (TESWorldSpace *wspc = wspcIter->data; wspc && wspc->cell)
 		{
-			refr = refrIter->data;
-			if (refr && (refr->baseForm == form))
-				tmpElements->Append(refr);
+			auto refrIter = wspc->cell->objectList.Head();
+			do
+			{
+				if (TESObjectREFR *refr = refrIter->data; refr && (refr->baseForm == form))
+					tmpElements->Append(refr);
+			}
+			while (refrIter = refrIter->next);
 		}
-		while (refrIter = refrIter->next);
 	}
 	while (wspcIter = wspcIter->next);
 	*result = (int)CreateArray(tmpElements->Data(), tmpElements->Size(), scriptObj);
@@ -337,11 +316,8 @@ bool Cmd_GetStringSetting_Execute(COMMAND_ARGS)
 	char settingName[0x80];
 	const char *resStr = NULL;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &settingName) && ((settingName[0] | 0x20) == 's'))
-	{
-		Setting *setting = s_gameSettingsMap->Get(settingName);
-		if (setting)
+		if (Setting *setting = s_gameSettingsMap->Get(settingName))
 			resStr = setting->data.str;
-	}
 	AssignString(PASS_COMMAND_ARGS, resStr);
 	return true;
 }
@@ -351,11 +327,8 @@ bool Cmd_SetStringSetting_Execute(COMMAND_ARGS)
 	char settingName[0x80];
 	char *buffer = GetStrArgBuffer();
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &settingName, buffer) && ((settingName[0] | 0x20) == 's'))
-	{
-		Setting *setting = s_gameSettingsMap->Get(settingName);
-		if (setting)
+		if (Setting *setting = s_gameSettingsMap->Get(settingName))
 			setting->Set(buffer, true);
-	}
 	return true;
 }
 

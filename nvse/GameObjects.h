@@ -74,7 +74,8 @@ public:
 	/*23C*/virtual void		Unk_8F(void);
 	/*240*/virtual void		MoveToHighProcess();
 
-	enum {
+	enum
+	{
 		kFlags_Unk00000002			= 0x00000002,
 		kFlags_Deleted				= 0x00000020,		// refr removed from .esp or savegame
 		kFlags_Taken				= kFlags_Deleted | kFlags_Unk00000002,
@@ -138,7 +139,7 @@ public:
 	bool __fastcall GetInSameCellOrWorld(TESObjectREFR *target) const;
 	float __vectorcall GetDistance(TESObjectREFR *target) const;
 	void SetPos(const NiVector3 &posVector);
-	void __vectorcall SetAngle(__m128 pry, UInt8 setLocal);
+	void __vectorcall SetAngle(__m128 pry, UInt8 setMode);
 	void __fastcall MoveToCell(TESObjectCELL *cell, const NiVector3 &posVector);
 	__m128 __vectorcall GetTranslatedPos(const NiVector3 &posMods) const;
 	void __vectorcall Rotate(__m128 rotVector);
@@ -199,7 +200,7 @@ public:
 	/*27C*/virtual void		Unk_9F(void);
 	/*280*/virtual void		StartConversation(void);	// 9 args
 	/*284*/virtual void		DoSpeechLoadLipFiles(void);	// 13 args!
-	/*288*/virtual void		Unk_A2(void);
+	/*288*/virtual void		StopDialogue();
 	/*28C*/virtual void		SetExtraRunOncePacks(TESPackage *package, UInt8 arg2);
 	/*290*/virtual bool		HasStartingWorldOrCell();
 	/*294*/virtual TESWorldSpace	*GetStartingWorld();
@@ -736,7 +737,9 @@ public:
 	ContChangesEntry *GetAmmoInfo() const;
 	TESObjectWEAP *GetEquippedWeapon() const;
 	bool IsItemEquipped(TESForm *item) const;
-	UInt8 EquippedWeaponHasMod(UInt32 modType) const;
+	bool EquippedWeaponHasMod(UInt32 modType) const;
+	UInt8 EquippedWeaponHasScope() const;
+	UInt8 EquippedWeaponSilenced() const;
 	bool IsSneaking() const;
 	void StopCombat();
 	bool __fastcall IsInCombatWith(Actor *target) const;
@@ -805,6 +808,7 @@ struct MusicMarker
 	ExtraAudioMarker::Data	*markerData;
 
 	MusicMarker(TESObjectREFR *_markerRef, ExtraAudioMarker::Data *data) : markerRef(_markerRef), markerData(data) {}
+	MusicMarker(const MusicMarker &from) : markerRef(from.markerRef), markerData(from.markerData) {}
 
 	bool operator<(const MusicMarker &rhs) const {return markerData->mediaLocCtrlID < rhs.markerData->mediaLocCtrlID;}
 };
@@ -823,7 +827,7 @@ class PerkRankFinder
 public:
 	PerkRankFinder(BGSPerk *_perk) : m_perk(_perk) {}
 
-	bool Accept(PerkRank *perkRank) const {return perkRank->perk == m_perk;}
+	bool operator==(PerkRank *perkRank) const {return perkRank->perk == m_perk;}
 };
 
 struct CasinoStats
@@ -882,7 +886,8 @@ public:
 		bhkSimpleShapePhantom	*phantom04;
 	};
 
-	UInt32								unk1C8[10];				// 1C8	208 could be a DialogPackage
+	UInt32								unk1C8[9];				// 1C8	208 could be a DialogPackage
+	PositionRequest						*posRequest;			// 1EC
 	TESForm								*queuedWeapon;			// 1F0
 	UInt32								unk1F4;					// 1F4
 	UInt8								byte1F8;				// 1F8
@@ -1113,12 +1118,12 @@ public:
 
 	/*304*/virtual UInt32	GetProjectileType();
 	/*308*/virtual void	Do3DLoaded();
-	/*30C*/virtual void	Unk_C3(void);
-	/*310*/virtual void	Unk_C4(void);
+	/*30C*/virtual void	HandleTracer();
+	/*310*/virtual void	UpdateProjectile(float timePassed);
 	/*314*/virtual bool	ProcessImpact();
 	/*318*/virtual bool	IsProximityTriggered();
 	/*31C*/virtual void	Unk_C7(void);
-	/*320*/virtual bool	DisarmPlacedExplosives(TESObjectREFR *refr, bool unk);
+	/*320*/virtual bool	DisarmPlacedExplosives(TESObjectREFR *refr, bool bSilent);
 	/*324*/virtual void	Unk_C9(void);
 	/*328*/virtual void	Unk_CA(void);
 	/*32C*/virtual void	Unk_CB(void);
@@ -1137,7 +1142,7 @@ public:
 		kProjFlag_MineDisarmed =				0x200,
 		kProjFlag_IsPickpocketLiveExplosive =	0x400,
 		kProjFlag_Bit0BUnk =					0x800,
-		kProjFlag_Bit0CUnk =					0x1000,
+		kProjFlag_AlwaysHit =					0x1000,
 		kProjFlag_Bit0DUnk =					0x2000,
 		kProjFlag_MineIgnoresPlayer =			0x4000,
 		kProjFlag_Bit0FUnk =					0x8000,		// Don't apply source-weapon's damage upon impact
@@ -1176,8 +1181,8 @@ public:
 	float				alpha;				// 0E0
 	float				detonationTime;		// 0E4
 	float				blinkTimer;			// 0E8
-	float				flt0EC;				// 0EC
-	float				flt0F0;				// 0F0
+	float				angMomentumZ;		// 0EC
+	float				angMomentumX;		// 0F0
 	float				wpnHealthPerc;		// 0F4
 	TESObjectWEAP		*sourceWeap;		// 0F8
 	TESObjectREFR		*sourceRef;			// 0FC
@@ -1195,10 +1200,14 @@ public:
 	UInt32				unk140;				// 140
 	ContChangesEntry	*rockItEntry;		// 144
 	UInt8				byte148;			// 148
-	UInt8				pad149[3];			// 149
+	bool				hasSplitBeams;		// 149	JIP only!
+	UInt8				numProjectiles;		// 14A	JIP only!
+	UInt8				pad14B;				// 14B
 	float				range;				// 14C
 
 	void GetData(UInt32 dataType, double *result) const;
+
+	TESAmmo *GetAmmo() const {return numProjectiles ? extraDataList.ammo : nullptr;}
 };
 static_assert(sizeof(Projectile) == 0x150);
 

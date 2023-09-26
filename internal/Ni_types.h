@@ -18,7 +18,7 @@ struct NiPoint2
 	NiPoint2(__m128 rhs) {*this = rhs;}
 
 	inline void operator=(const NiPoint2 &rhs) {_mm_storeu_si64(this, _mm_castps_si128(rhs.PS()));}
-	inline void operator=(NiPoint2 &&rhs) {_mm_storeu_si64(this, _mm_castps_si128(rhs.PS()));}
+	__forceinline void operator=(NiPoint2 &&rhs) {_mm_storeu_si64(this, _mm_castps_si128(rhs.PS()));}
 	inline void operator=(__m128 rhs) {_mm_storeu_si64(this, _mm_castps_si128(rhs));}
 
 	inline operator float*() {return &x;}
@@ -28,7 +28,8 @@ struct NiPoint2
 	void Dump() const;
 };
 
-#define SET_V3	_mm_storeu_si64(this, _mm_castps_si128(m));	\
+#define SET_V3(xmm) __m128 m = xmm; \
+	_mm_storeu_si64(this, _mm_castps_si128(m));	\
 	_mm_store_ss(&z, _mm_unpackhi_ps(m, m));
 
 // 0C
@@ -50,57 +51,50 @@ struct NiVector3
 
 	inline void operator=(const NiVector3 &rhs)
 	{
-		__m128 m = _mm_loadu_ps((const float*)&rhs);
-		SET_V3
+		SET_V3(_mm_loadu_ps((const float*)&rhs))
 	}
-	inline void operator=(NiVector3 &&rhs)
+	__forceinline void operator=(NiVector3 &&rhs)
 	{
-		__m128 m = _mm_loadu_ps((const float*)&rhs);
-		SET_V3
+		SET_V3(_mm_loadu_ps((const float*)&rhs))
 	}
 	inline void operator=(const NiVector4 &rhs)
 	{
-		__m128 m = _mm_loadu_ps((const float*)&rhs);
-		SET_V3
+		SET_V3(_mm_loadu_ps((const float*)&rhs))
 	}
 	inline void operator=(const NiPoint2 &rhs) {_mm_storeu_si64(this, _mm_castps_si128(rhs.PS()));}
 
 	void operator=(const NiMatrix33 &from);
 	void operator=(const NiQuaternion &from);
 
-	/*inline void __vectorcall operator=(const __m128 rhs)
+	/*inline void operator=(__m128 rhs)
 	{
-		_mm_storel_pi((__m64*)this, rhs);
+		_mm_storeu_si64(this, _mm_castps_si128(rhs));
 		_mm_store_ss(&z, _mm_unpackhi_ps(rhs, rhs));
 	}*/
 
-	inline __m128 operator+(__m128 packedPS) const {return _mm_add_ps(PS(), packedPS);}
-	inline __m128 operator-(__m128 packedPS) const {return _mm_sub_ps(PS(), packedPS);}
-	inline __m128 operator*(float s) const {return _mm_mul_ps(PS(), _mm_set_ps1(s));}
-	inline __m128 operator*(__m128 packedPS) const {return _mm_mul_ps(PS(), packedPS);}
+	inline __m128 operator+(__m128 packedPS) const {return PS() + packedPS;}
+	inline __m128 operator-(__m128 packedPS) const {return PS() - packedPS;}
+	inline __m128 operator*(float s) const {return PS() * _mm_set_ps1(s);}
+	inline __m128 operator*(__m128 packedPS) const {return PS() * packedPS;}
 
 	inline NiVector3& operator+=(__m128 packedPS)
 	{
-		__m128 m = *this + packedPS;
-		SET_V3
+		SET_V3(*this + packedPS)
 		return *this;
 	}
 	inline NiVector3& operator-=(__m128 packedPS)
 	{
-		__m128 m = *this - packedPS;
-		SET_V3
+		SET_V3(*this - packedPS)
 		return *this;
 	}
 	inline NiVector3& operator*=(float s)
 	{
-		__m128 m = *this * s;
-		SET_V3
+		SET_V3(*this * s)
 		return *this;
 	}
 	inline NiVector3& operator*=(__m128 packedPS)
 	{
-		__m128 m = *this * packedPS;
-		SET_V3
+		SET_V3(*this * packedPS)
 		return *this;
 	}
 
@@ -110,7 +104,7 @@ struct NiVector3
 
 	inline __m128 PS() const {return _mm_loadu_ps(&x);}
 	inline __m128 PS2() const {return _mm_castsi128_ps(_mm_loadu_si64(this));}
-	inline __m128 PS3() const {return _mm_and_ps(PS(), GET_PS(4));}
+	inline __m128 PS3() const {return PS() & GET_PS(4);}
 
 	inline bool operator==(const NiVector3 &rhs) const {return Equal_V3(PS(), rhs.PS());}
 	inline bool operator!=(const NiVector3 &rhs) const {return !(*this == rhs);}
@@ -118,7 +112,7 @@ struct NiVector3
 	inline float __vectorcall DotProduct(const NiVector3 &rhs) const
 	{
 		__m128 k = _mm_setzero_ps();
-		return _mm_cvtss_f32(_mm_hadd_ps(_mm_hadd_ps(_mm_mul_ps(PS3(), rhs.PS()), k), k));
+		return _mm_cvtss_f32(_mm_hadd_ps(_mm_hadd_ps(PS3() * rhs.PS(), k), k));
 	}
 
 	inline float __vectorcall Length() const {return Length_V4(PS3());}
@@ -152,7 +146,7 @@ struct NiVector4
 	NiVector4(const NiVector3 &rhs) {*this = rhs;}
 	NiVector4(const __m128 rhs) {*this = rhs;}
 
-	inline void operator=(NiVector4 &&rhs) {_mm_storeu_ps(*this, rhs.PS());}
+	__forceinline void operator=(NiVector4 &&rhs) {_mm_storeu_ps(*this, rhs.PS());}
 	inline void operator=(const NiVector4 &rhs) {_mm_storeu_ps(*this, rhs.PS());}
 	inline void operator=(const NiVector3 &rhs) {_mm_storeu_ps(*this, rhs.PS3());}
 	inline NiVector4& operator=(__m128 rhs)
@@ -161,15 +155,15 @@ struct NiVector4
 		return *this;
 	}
 
-	inline __m128 operator+(const NiVector3 &rhs) const {return _mm_add_ps(PS(), rhs.PS3());}
-	inline __m128 operator+(__m128 packedPS) const {return _mm_add_ps(PS(), packedPS);}
+	inline __m128 operator+(const NiVector3 &rhs) const {return PS() + rhs.PS3();}
+	inline __m128 operator+(__m128 packedPS) const {return PS() + packedPS;}
 
-	inline __m128 operator-(const NiVector3 &rhs) const {return _mm_sub_ps(PS(), rhs.PS3());}
-	inline __m128 operator-(__m128 packedPS) const {return _mm_sub_ps(PS(), packedPS);}
+	inline __m128 operator-(const NiVector3 &rhs) const {return PS() - rhs.PS3();}
+	inline __m128 operator-(__m128 packedPS) const {return PS() * packedPS;}
 
-	inline __m128 operator*(float s) const {return _mm_mul_ps(PS(), _mm_set_ps1(s));}
-	inline __m128 operator*(const NiVector3 &rhs) const {return _mm_mul_ps(PS(), rhs.PS3());}
-	inline __m128 operator*(__m128 packedPS) const {return _mm_mul_ps(PS(), packedPS);}
+	inline __m128 operator*(float s) const {return PS() * _mm_set_ps1(s);}
+	inline __m128 operator*(const NiVector3 &rhs) const {return PS() * rhs.PS3();}
+	inline __m128 operator*(__m128 packedPS) const {return PS() * packedPS;}
 
 	inline NiVector4& operator+=(const NiVector3 &rhs) {return *this = *this + rhs;}
 	inline NiVector4& operator+=(__m128 packedPS) {return *this = *this + packedPS;}
@@ -201,7 +195,7 @@ struct alignas(16) AlignedVector4
 	AlignedVector4(const NiVector4 &rhs) {*this = rhs;}
 	AlignedVector4(const __m128 rhs) {*this = rhs;}
 
-	inline void operator=(AlignedVector4 &&rhs) {_mm_store_ps(*this, rhs.PS());}
+	__forceinline void operator=(AlignedVector4 &&rhs) {_mm_store_ps(*this, rhs.PS());}
 	inline void operator=(const AlignedVector4 &rhs) {_mm_store_ps(*this, rhs.PS());}
 	inline void operator=(const NiVector4 &rhs) {_mm_store_ps(*this, rhs.PS());}
 	inline AlignedVector4& operator=(__m128 rhs)
@@ -210,10 +204,10 @@ struct alignas(16) AlignedVector4
 		return *this;
 	}
 
-	inline __m128 operator+(__m128 packedPS) const {return _mm_add_ps(PS(), packedPS);}
-	inline __m128 operator-(__m128 packedPS) const {return _mm_sub_ps(PS(), packedPS);}
-	inline __m128 operator*(float s) const {return _mm_mul_ps(PS(), _mm_set_ps1(s));}
-	inline __m128 operator*(__m128 packedPS) const {return _mm_mul_ps(PS(), packedPS);}
+	inline __m128 operator+(__m128 packedPS) const {return PS() + packedPS;}
+	inline __m128 operator-(__m128 packedPS) const {return PS() - packedPS;}
+	inline __m128 operator*(float s) const {return PS() * _mm_set_ps1(s);}
+	inline __m128 operator*(__m128 packedPS) const {return PS() * packedPS;}
 
 	inline AlignedVector4& operator+=(__m128 packedPS) {return *this = *this + packedPS;}
 	inline AlignedVector4& operator-=(__m128 packedPS) {return *this = *this - packedPS;}
@@ -242,7 +236,7 @@ struct AxisAngle
 	AxisAngle(const __m128 rhs) {*this = rhs;}
 
 	inline void operator=(const AxisAngle &from) {_mm_storeu_ps(*this, from.PS());}
-	inline void operator=(AxisAngle &&from) {_mm_storeu_ps(*this, from.PS());}
+	__forceinline void operator=(AxisAngle &&from) {_mm_storeu_ps(*this, from.PS());}
 	inline void operator=(const NiVector3 &pry) {FromEulerPRY(pry.PS());}
 	inline void operator=(const NiMatrix33 &rotMat) {FromRotationMatrix(rotMat);}
 	inline void operator=(const NiQuaternion &qt) {FromQuaternion(qt);}
@@ -330,6 +324,7 @@ struct NiMatrix33
 	__m128 __vectorcall MultiplyVectorInv(__m128 vec) const;
 	__m128 __vectorcall MultiplyVectorRow(__m128 vec, UInt32 whichRow) const;
 	NiMatrix33& __fastcall MultiplyMatrices(const NiMatrix33 &matB);
+	NiMatrix33& __fastcall MultiplyMatricesInv(const NiMatrix33 &matB);
 	NiMatrix33& __vectorcall Rotate(__m128 rot);
 	NiMatrix33& __fastcall Transpose(NiMatrix33 &out);
 
@@ -351,7 +346,7 @@ struct NiQuaternion
 	NiQuaternion(const __m128 rhs) {*this = rhs;}
 
 	inline void operator=(const NiQuaternion &rhs) {_mm_storeu_ps(*this, rhs.PS());}
-	inline void operator=(NiQuaternion &&rhs) {_mm_storeu_ps(*this, rhs.PS());}
+	__forceinline void operator=(NiQuaternion &&rhs) {_mm_storeu_ps(*this, rhs.PS());}
 	inline void operator=(const NiMatrix33 &rotMat) {FromRotationMatrix(rotMat);}
 	inline void operator=(const NiVector3 &pry) {FromEulerPRY(pry.PS());}
 	inline void operator=(const AxisAngle &axisAngle) {FromAxisAngle(axisAngle);}
@@ -362,11 +357,11 @@ struct NiQuaternion
 		return *this;
 	}
 
-	inline __m128 operator+(const NiQuaternion &rhs) const {return _mm_add_ps(PS(), rhs.PS());}
+	inline __m128 operator+(const NiQuaternion &rhs) const {return PS() + rhs.PS();}
 
-	inline __m128 operator-(const NiQuaternion &rhs) const {return _mm_sub_ps(PS(), rhs.PS());}
+	inline __m128 operator-(const NiQuaternion &rhs) const {return PS() - rhs.PS();}
 
-	inline __m128 operator*(float s) const {return _mm_mul_ps(PS(), _mm_set_ps1(s));}
+	inline __m128 operator*(float s) const {return PS() * _mm_set_ps1(s);}
 	inline __m128 operator*(const NiQuaternion &rhs) const {return MultiplyQuaternion(rhs);}
 	inline __m128 operator*(__m128 vec) const {return MultiplyVector(vec);}
 
@@ -392,14 +387,14 @@ struct NiQuaternion
 	__m128 __vectorcall MultiplyVector(__m128 vec) const;
 	__m128 __vectorcall MultiplyQuaternion(const NiQuaternion &rhs) const;
 
-	inline __m128 Invert() const {return _mm_xor_ps(PS(), _mm_load_ps((const float*)0x10C8780));}
+	inline __m128 Invert() const {return PS() ^ _mm_load_ps((const float*)0x10C8780);}
 
-	inline __m128 Negate() const {return _mm_xor_ps(PS(), GET_PS(2));}
+	inline __m128 Negate() const {return PS() ^ GET_PS(2);}
 
 	inline float __vectorcall DotProduct(const NiQuaternion &rhs) const
 	{
 		__m128 k = _mm_setzero_ps();
-		return _mm_cvtss_f32(_mm_hadd_ps(_mm_hadd_ps(_mm_mul_ps(PS(), rhs.PS()), k), k));
+		return _mm_cvtss_f32(_mm_hadd_ps(_mm_hadd_ps(PS() * rhs.PS(), k), k));
 	}
 
 	NiQuaternion& Normalize() {return *this = Normalize_V4(PS());}
@@ -461,9 +456,56 @@ struct NiQuatTransform
 };
 
 // 10
-struct NiSphere
+struct NiPlane
 {
-	float	x, y, z, radius;
+	NiVector3	nrm;
+	float		offset;
+
+	enum Sides
+	{
+		kSide_None,
+		kSide_Positive,
+		kSide_Negative
+	};
+
+	NiPlane() {}
+	NiPlane(float nX, float nY, float nZ, float offs) : nrm(nX, nY, nZ), offset(offs) {}
+	NiPlane(const NiPlane &rhs) {*this = rhs;}
+	NiPlane(const NiVector4 &rhs) {*this = rhs;}
+	NiPlane(const __m128 rhs) {*this = rhs;}
+	NiPlane(const NiVector3 &_nrm, const NiVector3 &point) : nrm(_nrm), offset(_nrm.DotProduct(point)) {}
+
+	inline void operator=(const NiPlane &rhs) {_mm_storeu_ps(*this, rhs.PS());}
+	inline void operator=(const NiVector4 &rhs) {_mm_storeu_ps(*this, rhs.PS());}
+	inline void operator=(__m128 rhs) {_mm_storeu_ps(*this, rhs);}
+	
+	inline operator float*() {return &nrm.x;}
+	inline __m128 PS() const {return _mm_loadu_ps(&nrm.x);}
+
+	UInt8 __fastcall CalculateSide(const NiVector3 &point) const;
+};
+
+// 10
+struct NiBound
+{
+	NiVector3	center;
+	float		radius;
+
+	NiBound() {}
+	NiBound(float cX, float cY, float cZ, float rad) : center(cX, cY, cZ), radius(rad) {}
+	NiBound(const NiBound &rhs) {*this = rhs;}
+	NiBound(const NiVector4 &rhs) {*this = rhs;}
+	NiBound(const __m128 rhs) {*this = rhs;}
+	
+	inline void operator=(const NiBound &rhs) {_mm_storeu_ps(*this, rhs.PS());}
+	inline void operator=(const NiVector4 &rhs) {_mm_storeu_ps(*this, rhs.PS());}
+	inline void operator=(__m128 rhs) {_mm_storeu_ps(*this, rhs);}
+	
+	inline operator float*() {return &center.x;}
+	inline __m128 PS() const {return _mm_loadu_ps(&center.x);}
+	
+	UInt8 __fastcall CalculateSide(const NiPlane &plane) const;
+	void Merge(const NiBound *other) {ThisCall(0xA7F3F0, this, other);}
 };
 
 // 10
@@ -478,9 +520,9 @@ struct NiViewport
 struct NiFrustum
 {
 	NiViewport	viewPort;	// 00
-	float		n;			// 10
-	float		f;			// 14
-	UInt8		o;			// 18
+	float		dNear;		// 10
+	float		dFar;		// 14
+	bool		ortho;		// 18
 	UInt8		pad19[3];	// 19
 };
 
@@ -492,8 +534,9 @@ struct NiColor
 	NiColor() {}
 	NiColor(float _r, float _g, float _b) : r(_r), g(_g), b(_b) {}
 	NiColor(const NiColor &rhs) {*this = rhs;}
+	NiColor(const __m128 rhs) {*this = rhs;}
 
-	inline void operator=(NiColor &&rhs)
+	__forceinline void operator=(NiColor &&rhs)
 	{
 		__m128 m = _mm_loadu_ps((const float*)&rhs);
 		_mm_storeu_si64(this, _mm_castps_si128(m));
@@ -505,11 +548,16 @@ struct NiColor
 		_mm_storeu_si64(this, _mm_castps_si128(m));
 		_mm_store_ss(&b, _mm_unpackhi_ps(m, m));
 	}
-	inline void operator=(const NiVector3 &rhs) {*this = *(NiColor*)&rhs;}
+	inline void operator=(__m128 rhs)
+	{
+		_mm_storeu_si64(this, _mm_castps_si128(rhs));
+		_mm_store_ss(&b, _mm_unpackhi_ps(rhs, rhs));
+	}
 
 	inline operator float*() {return &r;}
-	inline operator NiVector3() const {return *(NiVector3*)this;}
 	inline __m128 PS() const {return _mm_loadu_ps(&r);}
+
+	void Dump() const;
 };
 
 // 10
@@ -522,26 +570,18 @@ struct NiColorAlpha
 	NiColorAlpha(const NiColorAlpha &rhs) {*this = rhs;}
 	explicit NiColorAlpha(const __m128 rhs) {*this = rhs;}
 
-	inline void operator=(NiColorAlpha &&rhs) {_mm_storeu_ps(&r, rhs);}
+	__forceinline void operator=(NiColorAlpha &&rhs) {_mm_storeu_ps(&r, rhs);}
 	inline void operator=(const NiColorAlpha &rhs) {_mm_storeu_ps(&r, rhs);}
 	inline void operator=(const __m128 rhs) {_mm_storeu_ps(&r, rhs);}
 
 	inline NiColorAlpha& operator*=(float value)
 	{
-		_mm_storeu_ps(&r, _mm_mul_ps(_mm_loadu_ps(&r), _mm_set_ps1(value)));
+		*this = _mm_mul_ps(*this, _mm_set_ps1(value));
 		return *this;
 	}
 
 	inline operator float*() {return &r;}
-	inline operator NiVector4&() const {return *(NiVector4*)this;}
 	inline operator __m128() const {return _mm_loadu_ps(&r);}
-};
-
-// 10
-struct NiPlane
-{
-	NiVector3	nrm;
-	float		offset;
 };
 
 // 64
@@ -569,6 +609,8 @@ struct NiFrustumPlanes
 
 	NiPlane		cullingPlanes[6];
 	UInt32		activePlanes;	//	Bitmask
+
+	void Set(NiCamera *camera);
 };
 
 // 06
@@ -578,7 +620,17 @@ struct NiTriangle
 	UInt16		point2;
 	UInt16		point3;
 
+	NiTriangle(UInt16 pt1, UInt16 pt2, UInt16 pt3) : point1(pt1), point2(pt2), point3(pt3) {}
+
 	void Dump() const;
+};
+
+template <typename T> struct NiRect
+{
+	T	left, right, top, bottom;
+
+	NiRect() {}
+	NiRect(T _left, T _right, T _top, T _bottom) : left(_left), right(_right), top(_top), bottom(_bottom) {}
 };
 
 // 10
@@ -587,9 +639,10 @@ struct NiTriangle
 // not sure on the above, but some code only works if this is true
 // this can obviously lead to fragmentation, but the accessors don't seem to care
 // weird stuff
-template <typename T_Data>
-struct NiTArray
+template <typename T_Data> class NiTArray
 {
+	Use_ArrayUtils(NiTArray, T_Data)
+public:
 	virtual void	*Destroy(UInt32 doFree);
 
 	T_Data		*data;			// 04
@@ -600,7 +653,9 @@ struct NiTArray
 
 	T_Data operator[](UInt32 idx) {return data[idx];}
 
-	UInt16 Length() const {return firstFreeEntry;}
+	UInt16 Size() const {return firstFreeEntry;}
+	bool Empty() const {return !firstFreeEntry;}
+	T_Data *Data() const {return const_cast<T_Data*>(data);}
 
 	__forceinline int Append(T_Data *item)
 	{
@@ -641,9 +696,9 @@ struct NiTArray
 // 18
 // an NiTArray that can go above 0xFFFF, probably with all the same weirdness
 // this implies that they make fragmentable arrays with 0x10000 elements, wtf
-template <typename T_Data>
-class NiTLargeArray
+template <typename T_Data> class NiTLargeArray
 {
+	Use_ArrayUtils(NiTLargeArray, T_Data)
 public:
 	virtual void	*Destroy(UInt32 doFree);
 
@@ -655,7 +710,9 @@ public:
 
 	T_Data operator[](UInt32 idx) {return data[idx];}
 
-	UInt32 Length() const {return firstFreeEntry;}
+	UInt32 Size() const {return firstFreeEntry;}
+	bool Empty() const {return !firstFreeEntry;}
+	T_Data *Data() const {return const_cast<T_Data*>(data);}
 
 	class Iterator
 	{
@@ -681,12 +738,10 @@ public:
 };
 
 // 10
-// this is a NiTPointerMap <UInt32, T_Data>
-// todo: generalize key
-template <typename T_Data>
-class NiTPointerMap
+template <typename T_Data> class NiTPtrMap
 {
-public:
+	Use_HashMapUtils(NiTPtrMap)
+
 	struct Entry
 	{
 		Entry		*next;
@@ -694,6 +749,26 @@ public:
 		T_Data		*data;
 	};
 
+	struct Bucket
+	{
+		Entry		*entries;
+
+		UInt32 Size() const
+		{
+			UInt32 size = 0;
+			for (Entry *pEntry = entries; pEntry; pEntry = pEntry->next, size++);
+			return size;
+		}
+	};
+
+	UInt32		m_numBuckets;	// 04
+	Bucket		*m_buckets;		// 08
+	UInt32		m_numItems;		// 0C
+
+	Bucket *GetBuckets() const {return m_buckets;}
+	Bucket *End() const {return m_buckets + m_numBuckets;}
+
+public:
 	virtual void	Destroy(bool doFree);
 	virtual UInt32	CalculateBucket(UInt32 key);
 	virtual bool	CompareKey(UInt32 lhs, UInt32 rhs);
@@ -702,9 +777,9 @@ public:
 	virtual Entry	*AllocNewEntry();
 	virtual void	FreeEntry(Entry *entry);
 
-	UInt32		m_numBuckets;	// 04
-	Entry		**m_buckets;	// 08
-	UInt32		m_numItems;		// 0C
+	UInt32 Size() const {return m_numItems;}
+	bool Empty() const {return !m_numItems;}
+	UInt32 BucketCount() const {return m_numBuckets;}
 
 	bool HasKey(UInt32 key) const
 	{
@@ -716,44 +791,20 @@ public:
 	T_Data *Lookup(UInt32 key) const;
 	void Insert(UInt32 key, T_Data value);
 
-	void DumpLoads()
-	{
-		int loadsArray[0x80];
-		ZERO_BYTES(loadsArray, sizeof(loadsArray));
-		Entry **pBucket = m_buckets, *entry;
-		UInt32 maxLoad = 0, entryCount;
-		for (Entry **pEnd = m_buckets + m_numBuckets; pBucket != pEnd; pBucket++)
-		{
-			entryCount = 0;
-			entry = *pBucket;
-			while (entry)
-			{
-				entryCount++;
-				entry = entry->next;
-			}
-			loadsArray[entryCount]++;
-			if (maxLoad < entryCount)
-				maxLoad = entryCount;
-		}
-		PrintDebug("Size = %d\nBuckets = %d\n----------------\n", m_numItems, m_numBuckets);
-		for (UInt32 iter = 0; iter <= maxLoad; iter++)
-			PrintDebug("%d:\t%05d (%.4f%%)", iter, loadsArray[iter], 100.0 * (double)loadsArray[iter] / m_numItems);
-	}
-
 	class Iterator
 	{
-		NiTPointerMap	*table;
-		Entry			**bucket;
+		NiTPtrMap		*table;
+		Bucket			*bucket;
 		Entry			*entry;
 
 		void FindNonEmpty()
 		{
-			for (Entry **end = &table->m_buckets[table->m_numBuckets]; bucket != end; bucket++)
-				if (entry = *bucket) break;
+			for (Bucket *end = table->End(); bucket != end; bucket++)
+				if (entry = bucket->entries) break;
 		}
 
 	public:
-		Iterator(NiTPointerMap &_table) : table(&_table), bucket(table->m_buckets), entry(nullptr) {FindNonEmpty();}
+		Iterator(NiTPtrMap &_table) : table(&_table), bucket(table->m_buckets), entry(nullptr) {FindNonEmpty();}
 
 		explicit operator bool() const {return entry != nullptr;}
 		void operator++()
@@ -773,7 +824,7 @@ public:
 };
 
 template <typename T_Data>
-__declspec(naked) T_Data *NiTPointerMap<T_Data>::Lookup(UInt32 key) const
+__declspec(naked) T_Data *NiTPtrMap<T_Data>::Lookup(UInt32 key) const
 {
 	__asm
 	{
@@ -800,8 +851,10 @@ __declspec(naked) T_Data *NiTPointerMap<T_Data>::Lookup(UInt32 key) const
 	}
 }
 
+UInt32 *NiTPtrMap<UInt32>::Lookup(UInt32 key) const;
+
 template <typename T_Data>
-__declspec(naked) void NiTPointerMap<T_Data>::Insert(UInt32 key, T_Data value)
+__declspec(naked) void NiTPtrMap<T_Data>::Insert(UInt32 key, T_Data value)
 {
 	__asm
 	{
@@ -829,10 +882,10 @@ __declspec(naked) void NiTPointerMap<T_Data>::Insert(UInt32 key, T_Data value)
 // todo: NiTPointerMap should derive from this
 // cleaning that up now could cause problems, so it will wait
 
-template <typename T_Key, typename T_Data>
-class NiTMapBase
+template <typename T_Key, typename T_Data> class NiTMap
 {
-public:
+	Use_HashMapUtils(NiTMap)
+
 	struct Entry
 	{
 		Entry		*next;
@@ -840,6 +893,26 @@ public:
 		T_Data		data;
 	};
 
+	struct Bucket
+	{
+		Entry		*entries;
+
+		UInt32 Size() const
+		{
+			UInt32 size = 0;
+			for (Entry *pEntry = entries; pEntry; pEntry = pEntry->next, size++);
+			return size;
+		}
+	};
+
+	UInt32		numBuckets;	// 04
+	Bucket		*buckets;	// 08
+	UInt32		numItems;	// 0C
+
+	Bucket *GetBuckets() const {return buckets;}
+	Bucket *End() const {return buckets + numBuckets;}
+
+public:
 	/*00*/virtual void		Destroy(bool doFree);
 	/*04*/virtual UInt32	CalculateBucket(T_Key key);
 	/*08*/virtual bool		Equal(T_Key key1, T_Key key2);
@@ -848,33 +921,28 @@ public:
 	/*14*/virtual Entry		*AllocNewEntry();
 	/*18*/virtual void		FreeEntry(Entry *entry);
 
-	UInt32		numBuckets;	// 04
-	Entry		**buckets;	// 08
-	UInt32		numItems;	// 0C
+	UInt32 Size() const {return numItems;}
+	bool Empty() const {return !numItems;}
+	UInt32 BucketCount() const {return numBuckets;}
 
-	T_Data Lookup(T_Key key)
-	{
-		for (Entry *entry = buckets[CalculateBucket(key)]; entry; entry = entry->next)
-			if (Equal(key, entry->key)) return entry->data;
-		return nullptr;
-	}
+	T_Data __fastcall Lookup(T_Key key) const;
 
 	void FreeBuckets();
 
 	class Iterator
 	{
-		NiTMapBase		*table;
-		Entry			**bucket;
+		NiTMap			*table;
+		Bucket			*bucket;
 		Entry			*entry;
 
 		void FindNonEmpty()
 		{
-			for (Entry **end = &table->buckets[table->numBuckets]; bucket != end; bucket++)
-				if (entry = *bucket) break;
+			for (Bucket *end = table->End(); bucket != end; bucket++)
+				if (entry = bucket->entries) break;
 		}
 
 	public:
-		Iterator(NiTMapBase &_table) : table(&_table), bucket(table->buckets), entry(nullptr) {FindNonEmpty();}
+		Iterator(NiTMap &_table) : table(&_table), bucket(table->buckets), entry(nullptr) {FindNonEmpty();}
 
 		explicit operator bool() const {return entry != nullptr;}
 		void operator++()
@@ -888,13 +956,55 @@ public:
 		}
 		T_Data Get() const {return entry->data;}
 		T_Key Key() const {return entry->key;}
+		Entry *GetEntry() {return entry;}
 	};
 
 	Iterator Begin() {return Iterator(*this);}
 };
 
 template <typename T_Key, typename T_Data>
-__declspec(naked) void NiTMapBase<T_Key, T_Data>::FreeBuckets()
+__declspec(naked) T_Data __fastcall NiTMap<T_Key, T_Data>::Lookup(T_Key key) const
+{
+	__asm
+	{
+		push	ebx
+		push	esi
+		push	edi
+		mov		ebx, ecx
+		mov		edi, edx
+		push	edx
+		mov		esi, [ecx]
+		call	dword ptr [esi+4]
+		mov		edx, [ebx+8]
+		mov		ebx, [esi+8]
+		mov		esi, [edx+eax*4]
+		ALIGN 16
+	iterHead:
+		test	esi, esi
+		jz		retnNull
+		push	dword ptr [esi+4]
+		push	edi
+		call	ebx
+		mov		ecx, esi
+		mov		esi, [esi]
+		test	al, al
+		jz		iterHead
+		mov		eax, [ecx+8]
+		pop		edi
+		pop		esi
+		pop		ebx
+		retn
+	retnNull:
+		xor		eax, eax
+		pop		edi
+		pop		esi
+		pop		ebx
+		retn
+	}
+}
+
+template <typename T_Key, typename T_Data>
+__declspec(naked) void NiTMap<T_Key, T_Data>::FreeBuckets()
 {
 	__asm
 	{
@@ -946,9 +1056,12 @@ __declspec(naked) void NiTMapBase<T_Key, T_Data>::FreeBuckets()
 	}
 }
 
+UInt32 NiTMap<UInt32, UInt32>::Lookup(UInt32 key) const;
+void NiTMap<UInt32, UInt32>::FreeBuckets();
+
 // 14
 template <typename T_Data>
-class NiTStringPointerMap : public NiTMapBase<const char*, T_Data>
+class NiTStringPointerMap : public NiTMap<const char*, T_Data>
 {
 public:
 	UInt8		byte10;

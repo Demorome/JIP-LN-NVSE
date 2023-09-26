@@ -1127,13 +1127,6 @@ constexpr ParamInfo kParams_OneForm_OneInt_TwoOptionalInts[] =
 	{"Integer", kParamType_Integer, 1}
 };
 
-constexpr ParamInfo kParams_TwoStrings_OneDouble[] =
-{
-	{"String", kParamType_String, 0},
-	{"String", kParamType_String, 0},
-	{"Double", kParamType_Double, 0}
-};
-
 constexpr ParamInfo kParams_OneGlobal_OneOptionalForm[] =
 {
 	{"Global", kParamType_Global, 0},
@@ -1543,9 +1536,10 @@ constexpr ParamInfo kParams_OneOptionalFloat_OneOptionalInt[] =
 	{"Integer", kParamType_Integer, 1}
 };
 
-constexpr ParamInfo kParams_OneOptionalString_OneOptionalInt[] =
+constexpr ParamInfo kParams_OneOptionalString_TwoOptionalInts[] =
 {
 	{"String", kParamType_String, 1},
+	{"Integer", kParamType_Integer, 1},
 	{"Integer", kParamType_Integer, 1}
 };
 
@@ -1572,11 +1566,12 @@ constexpr ParamInfo kParams_OneString_TwoInts_OneFloat[] =
 	{"Float", kParamType_Float, 0}
 };
 
-constexpr ParamInfo kParams_TwoStrings_OneFloat_TwoOptionalInt[] =
+constexpr ParamInfo kParams_TwoStrings_OneFloat_ThreeOptionalInts[] =
 {
 	{"String", kParamType_String, 0},
 	{"String", kParamType_String, 0},
 	{"Float", kParamType_Float, 0},
+	{"Integer", kParamType_Integer, 1},
 	{"Integer", kParamType_Integer, 1},
 	{"Integer", kParamType_Integer, 1}
 };
@@ -1830,5 +1825,12 @@ constexpr ParamInfo kParams_OneInt_ThreeOptionalInts[] =
 	{"Integer", kParamType_Integer, 0},
 	{"Integer", kParamType_Integer, 1},
 	{"Integer", kParamType_Integer, 1},
+	{"Integer", kParamType_Integer, 1}
+};
+
+constexpr ParamInfo kParams_OneOptionalInt_OneOptionalFloat_OneOptionalInt[] =
+{
+	{"Integer", kParamType_Integer, 1},
+	{"Float", kParamType_Float, 0},
 	{"Integer", kParamType_Integer, 1}
 };

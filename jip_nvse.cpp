@@ -1406,6 +1406,16 @@ bool NVSEPlugin_Load(const NVSEInterface *nvse)
 	/*2935*/REG_CMD_ARR(GetMenuItemListRefs);
 	//	v56.95
 	/*2936*/REG_CMD_FRM(GetSelfAsInventoryRef);
+	//	v57.05
+	/*2937*/REG_CMD(SetDamageToArmorMaxPercent);
+	//	v57.15
+	/*2938*/REG_CMD(RegisterSRScript);
+	/*2939*/REG_CMD(SetAmmoCasing);
+	//	v57.20
+	/*293A*/REG_CMD(AssignKeyword);
+	/*293B*/REG_CMD(HasKeyword);
+	/*293C*/REG_CMD_ARR(GetKeywordForms);
+	/*293D*/REG_CMD(ToggleDepthClear);
 
 	//===========================================================
 
@@ -1494,9 +1504,10 @@ void NVSEMessageHandler(NVSEMessagingInterface::Message *nvseMsg)
 			InitGamePatches();
 			InitCmdPatches();
 
-			HMODULE hUIO = GetModuleHandle("ui_organizer");
-			if (hUIO)
+			if (HMODULE hUIO = GetModuleHandle("ui_organizer"))
 				UIOInjectComponent = (_UIOInjectComponent)GetProcAddress(hUIO, (LPCSTR)0xA);
+
+			*s_inventoryIterator;
 
 			break;
 		}
@@ -1547,6 +1558,7 @@ void NVSEMessageHandler(NVSEMessagingInterface::Message *nvseMsg)
 		case NVSEMessagingInterface::kMessage_RenameNewGame:
 			break;
 		case NVSEMessagingInterface::kMessage_NewGame:
+			s_serializedVars.Reset();
 			RestoreJIPFormFlags();
 			JIPScriptRunner::RunScripts(JIPScriptRunner::kRunOn_NewGame, JIPScriptRunner::kRunOn_LoadOrNewGame);
 			break;

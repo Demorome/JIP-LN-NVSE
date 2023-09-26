@@ -1,6 +1,6 @@
 #pragma once
 
-enum ActorValueCode
+enum ActorValueCode : UInt32
 {
 	/*00*/kAVCode_Aggression,
 	/*01*/kAVCode_Confidence,
@@ -82,7 +82,7 @@ enum ActorValueCode
 	kAVCode_Max
 };
 
-enum MiscStatCode
+enum MiscStatCode : UInt32
 {
 	/*00*/kMiscStat_QuestsCompleted,
 	/*01*/kMiscStat_LocationsDiscovered,
@@ -130,7 +130,7 @@ enum MiscStatCode
 	kMiscStat_Max
 };
 
-enum PerkEntryPointID
+enum PerkEntryPointID : UInt32
 {
 	/*00*/kPerkEntry_CalculateWeaponDamage,
 	/*01*/kPerkEntry_CalculateMyCriticalHitChance,
@@ -182,7 +182,7 @@ enum PerkEntryPointID
 	/*2F*/kPerkEntry_SeeEnemyHealth,
 	/*30*/kPerkEntry_HasJuryRigging,
 	/*31*/kPerkEntry_ModifyThreatRange,
-	/*32*/kPerkEntry_ModifyThread,
+	/*32*/kPerkEntry_ModifyThreat,
 	/*33*/kPerkEntry_HasFastTravelAlways,
 	/*34*/kPerkEntry_KnockdownChance,
 	/*35*/kPerkEntry_ModifyWeaponStrengthReq,
@@ -192,7 +192,7 @@ enum PerkEntryPointID
 	/*39*/kPerkEntry_ModifyChanceforAmmoItem,
 	/*3A*/kPerkEntry_ModifyDamageThresholdAttacker,
 	/*3B*/kPerkEntry_ModifyThrowingVelocity,
-	/*3C*/kPerkEntry_ChanceforItemonFire,
+	/*3C*/kPerkEntry_ChanceForItemOnFire,
 	/*3D*/kPerkEntry_HasUnarmedForwardPowerAttack,
 	/*3E*/kPerkEntry_HasUnarmedBackPowerAttack,
 	/*3F*/kPerkEntry_HasUnarmedCrouchedPowerAttack,
@@ -239,36 +239,3 @@ enum MaterialType
 	kMaterial_OrganicBug,
 	kMaterial_OrganicGlow
 };
-
-#define ADDR_AddExtraData		0x40FF60
-#define ADDR_RemoveExtraType	0x410140
-#define ADDR_LoadModel			0x447080
-#define ADDR_ApplyAmmoEffects	0x59A030
-#define ADDR_MoveToMarker		0x5CCB20
-#define ADDR_ApplyPerkModifiers	0x5E58F0
-#define ADDR_ReturnThis			0x6815C0
-#define ADDR_PurgeTerminalModel	0x7FFE00
-#define ADDR_EquipItem			0x88C650
-#define ADDR_UnequipItem		0x88C790
-#define ADDR_ReturnTrue			0x8D0360
-#define ADDR_TileGetFloat		0xA011B0
-#define ADDR_TileSetFloat		0xA012D0
-#define ADDR_TileSetString		0xA01350
-#define ADDR_TileValSetFloat	0xA0A270
-#define ADDR_InitFontInfo		0xA12020
-#define ADDR_ReturnThis2		0xE68810
-
-#define EXTRA_DATA_CS			0x11C3920
-#define SCENE_LIGHTS_CS			0x11F9EA0
-
-#define IS_REFERENCE(form) ((*(UInt32**)form)[0x3C] == ADDR_ReturnTrue)
-#define NOT_REFERENCE(form) ((*(UInt32**)form)[0x3C] != ADDR_ReturnTrue)
-#define IS_ACTOR(form) ((*(UInt32**)form)[0x40] == ADDR_ReturnTrue)
-#define NOT_ACTOR(form) ((*(UInt32**)form)[0x40] != ADDR_ReturnTrue)
-#define IS_NODE(object) ((*(UInt32**)object)[3] == ADDR_ReturnThis)
-#define IS_GEOMETRY(object) ((*(UInt32**)object)[7] == ADDR_ReturnThis2)
-
-extern const bool kInventoryType[];
-extern const UInt8 kMaterialConvert[];
-extern const char kDaysPerMonth[], kMenuIDJumpTable[];
-extern bool s_NPCWeaponMods, s_NPCPerks;

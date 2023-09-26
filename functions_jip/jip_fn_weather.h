@@ -21,11 +21,11 @@ DEFINE_COMMAND_PLUGIN(ReloadCloudTextures, 0, 0, NULL);
 
 bool Cmd_GetWeatherImageSpaceMod_Execute(COMMAND_ARGS)
 {
-	REFR_RES = 0;
 	TESWeather *weather;
 	UInt32 time;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &weather, &time) && (time <= 5) && weather->imageSpaceMods[time])
 		REFR_RES = weather->imageSpaceMods[time]->refID;
+	else REFR_RES = 0;
 	return true;
 }
 
@@ -41,12 +41,11 @@ bool Cmd_SetWeatherImageSpaceMod_Execute(COMMAND_ARGS)
 
 bool Cmd_GetWeatherTexture_Execute(COMMAND_ARGS)
 {
-	const char *resStr;
+	const char *resStr = nullptr;
 	TESWeather *weather;
 	UInt32 layer;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &weather, &layer) && (layer <= 3))
 		resStr = weather->layerTextures[layer].ddsPath.m_data;
-	else resStr = NULL;
 	AssignString(PASS_COMMAND_ARGS, resStr);
 	return true;
 }
@@ -63,11 +62,10 @@ bool Cmd_SetWeatherTexture_Execute(COMMAND_ARGS)
 
 bool Cmd_GetWeatherPrecipitationModel_Execute(COMMAND_ARGS)
 {
-	const char *resStr;
+	const char *resStr = nullptr;
 	TESWeather *weather;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &weather))
 		resStr = weather->model.GetModelPath();
-	else resStr = NULL;
 	AssignString(PASS_COMMAND_ARGS, resStr);
 	return true;
 }
@@ -86,84 +84,82 @@ bool Cmd_GetWeatherTraitNumeric_Execute(COMMAND_ARGS)
 	*result = 0;
 	TESWeather *weather;
 	UInt32 traitID;
-	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &weather, &traitID) || (traitID > 20)) return true;
-	switch (traitID)
-	{
-		case 0:
-		case 1:
-		case 2:
-		case 3:
-			*result = weather->cloudSpeed[traitID] * (1 / 2550.0);
-			break;
-		case 4:
-			*result = weather->windSpeed * (1 / 255.0);
-			break;
-		case 5:
-			*result = weather->transDelta * 0.001;
-			break;
-		case 6:
-		case 7:
-		case 8:
-		case 9:
-		case 10:
-		case 11:
-		case 12:
-			*result = ((UInt8*)weather)[0xDE + traitID] * (1 / 255.0);
-			break;
-		case 13:
-			*result = weather->weatherClassification;
-			break;
-		case 14:
-			cvtul2d(RGBHexToDec(weather->lightningColor), result);
-			break;
-		default:
-			*result = weather->fogDistance[traitID - 15];
-	}
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &weather, &traitID) && (traitID <= 20))
+		switch (traitID)
+		{
+			case 0:
+			case 1:
+			case 2:
+			case 3:
+				*result = weather->cloudSpeed[traitID] * (1 / 2550.0);
+				break;
+			case 4:
+				*result = weather->windSpeed * (1 / 255.0);
+				break;
+			case 5:
+				*result = weather->transDelta * 0.001;
+				break;
+			case 6:
+			case 7:
+			case 8:
+			case 9:
+			case 10:
+			case 11:
+			case 12:
+				*result = ((UInt8*)weather)[0xDE + traitID] * (1 / 255.0);
+				break;
+			case 13:
+				*result = weather->weatherClassification;
+				break;
+			case 14:
+				cvtul2d(RGBHexToDec(weather->lightningColor), result);
+				break;
+			default:
+				*result = weather->fogDistance[traitID - 15];
+		}
 	return true;
 }
 
 bool Cmd_SetWeatherTraitNumeric_Execute(COMMAND_ARGS)
 {
 	TESWeather *weather;
-	UInt32 traitID, intVal;
+	UInt32 traitID;
 	double value;
-	if (!ExtractArgsEx(EXTRACT_ARGS_EX, &weather, &traitID, &value) || (traitID > 20)) return true;
-	switch (traitID)
-	{
-		case 0:
-		case 1:
-		case 2:
-		case 3:
-			weather->cloudSpeed[traitID] = (value > 0.1) ? 255 : (value * 2550);
-			break;
-		case 4:
-			weather->windSpeed = (value > 1) ? 255 : (value * 255);
-			break;
-		case 5:
-			weather->transDelta = (value > 0.25) ? 255 : (value * 1000);
-			break;
-		case 6:
-		case 7:
-		case 8:
-		case 9:
-		case 10:
-		case 11:
-		case 12:
-			((UInt8*)weather)[0xDE + traitID] = (value > 1) ? 255 : (value * 255);
-			break;
-		case 13:
-			intVal = (int)value;
-			if (!intVal || (intVal == 1) || (intVal == 2) || (intVal == 4) || (intVal == 8))
-				weather->weatherClassification = intVal;
-			break;
-		case 14:
-			intVal = (int)value;
-			if (intVal <= 255255255)
-				weather->lightningColor = RGBDecToHex(intVal);
-			break;
-		default:
-			weather->fogDistance[traitID - 15] = value;
-	}
+	if (ExtractArgsEx(EXTRACT_ARGS_EX, &weather, &traitID, &value) && (traitID <= 20))
+		switch (traitID)
+		{
+			case 0:
+			case 1:
+			case 2:
+			case 3:
+				weather->cloudSpeed[traitID] = (value > 0.1) ? 255 : (value * 2550);
+				break;
+			case 4:
+				weather->windSpeed = (value > 1) ? 255 : (value * 255);
+				break;
+			case 5:
+				weather->transDelta = (value > 0.25) ? 255 : (value * 1000);
+				break;
+			case 6:
+			case 7:
+			case 8:
+			case 9:
+			case 10:
+			case 11:
+			case 12:
+				((UInt8*)weather)[0xDE + traitID] = (value > 1) ? 255 : (value * 255);
+				break;
+			case 13:
+				if (UInt32 intVal = (int)value; !(intVal & (intVal - 1)))
+					weather->weatherClassification = intVal;
+				break;
+			case 14:
+				if (UInt32 decRGB = cvtd2ul(value); decRGB <= 255255255)
+					weather->lightningColor = RGBDecToHex(decRGB);
+				break;
+			default:
+				weather->fogDistance[traitID - 15] = value;
+		}
 	return true;
 }
 
@@ -173,12 +169,10 @@ bool Cmd_GetWeatherRGBColor_Execute(COMMAND_ARGS)
 	TESWeather *weather;
 	UInt32 type, time, layer = 0;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &weather, &type, &time, &layer) && (type <= 9) && (time <= 5))
-	{
 		if (type != 2)
 			cvtul2d(RGBHexToDec(weather->colors[type][time]), result);
 		else if (layer <= 3)
 			cvtul2d(RGBHexToDec(weather->cloudColor[layer][time]), result);
-	}
 	return true;
 }
 
@@ -187,12 +181,10 @@ bool Cmd_SetWeatherRGBColor_Execute(COMMAND_ARGS)
 	TESWeather *weather;
 	UInt32 type, time, rgb, layer = 0;
 	if (ExtractArgsEx(EXTRACT_ARGS_EX, &weather, &type, &time, &rgb, &layer) && (type <= 9) && (time <= 5) && (rgb <= 255255255))
-	{
 		if (type != 2)
 			weather->colors[type][time] = RGBDecToHex(rgb);
 		else if (layer <= 3)
 			weather->cloudColor[layer][time] = RGBDecToHex(rgb);
-	}
 	return true;
 }
 
