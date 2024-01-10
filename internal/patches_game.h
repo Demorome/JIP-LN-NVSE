@@ -4053,10 +4053,12 @@ bool s_noMovementCombat = false;
 
 __declspec(naked) bool __fastcall GetControlFlagHook(PlayerCharacter *thePlayer, int, UInt32 flag)
 {
+
 	__asm
 	{
 		cmp		s_noMovementCombat, 1
 		jz		done
+
 		test	byte ptr [ecx+0x680], 1
 	done:
 		setnz	al

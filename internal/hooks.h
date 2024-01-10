@@ -4702,6 +4702,7 @@ __declspec(naked) void ProcessHUDMainUI()
 
 __declspec(naked) bool GetVanityDisabledHook()
 {
+	static UInt32 const CheckIfControlDisabledAddr = 0x5A03F0;
 	__asm
 	{
 		cmp		s_HUDCursorMode, 0
@@ -4710,9 +4711,8 @@ __declspec(naked) bool GetVanityDisabledHook()
 		mov		al, 1
 		retn	4
 	getCtrlFlag:
-		test	byte ptr [ecx+0x680], 2
-		setnz	al
-		retn	4
+		call	CheckIfControlDisabledAddr  // compatibility with xNVSE's DisablePlayerControlsAlt(Ex)
+		retn // above call cleaned the stack for us, so no "retn 4"
 	}
 }
 
