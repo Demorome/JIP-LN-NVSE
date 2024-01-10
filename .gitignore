@@ -21,3 +21,7 @@
 .vs/jip_nvse/v17/.suo
 *.idb
 .vs/jip_nvse/v17/.suo
+*.json
+*.command
+*.bin
+*.vsidx
